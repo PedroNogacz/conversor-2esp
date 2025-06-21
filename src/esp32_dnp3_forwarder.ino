@@ -5,12 +5,19 @@ byte mac[] = { 0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0x02 };
 IPAddress ip(192, 168, 1, 70);
 IPAddress pcIp(192, 168, 1, 80);
 
+const int W5500_RST = 16; // GPIO used to reset the Ethernet module
+
 EthernetServer server(20000); // Listen for PC
 EthernetClient outClient;
 
 void setup() {
   Serial.begin(115200);
   Serial2.begin(115200); // Link with Modbus ESP32
+  pinMode(W5500_RST, OUTPUT);
+  digitalWrite(W5500_RST, LOW);
+  delay(50);
+  digitalWrite(W5500_RST, HIGH);
+  delay(50);
   Ethernet.begin(mac, ip);
   Serial.print("DNP3 ESP32 IP: ");
   Serial.println(Ethernet.localIP());
