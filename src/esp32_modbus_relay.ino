@@ -5,6 +5,8 @@ byte mac[] = { 0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0x01 };
 IPAddress ip(192, 168, 1, 60);
 IPAddress senderIp(192, 168, 1, 50); // ESP8266 address
 
+const int W5500_RST = 16; // GPIO used to reset the Ethernet module
+
 EthernetClient outClient;
 
 EthernetServer server(502); // Listen for Modbus TCP
@@ -29,6 +31,11 @@ int dnp3ToModbus(const byte *in, int len, byte *out, int outSize) {
 void setup() {
   Serial.begin(115200);
   Serial2.begin(115200); // Link to second ESP32
+  pinMode(W5500_RST, OUTPUT);
+  digitalWrite(W5500_RST, LOW);
+  delay(50);
+  digitalWrite(W5500_RST, HIGH);
+  delay(50);
   Ethernet.begin(mac, ip);
   Serial.print("Modbus ESP32 IP: ");
   Serial.println(Ethernet.localIP());
