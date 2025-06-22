@@ -31,7 +31,7 @@ int dnp3ToModbus(const byte *in, int len, byte *out, int outSize) {
 
 void setup() {
   Serial.begin(115200);
-  Serial2.begin(115200); // Link to second ESP32
+  Serial2.begin(115200); // Link to NodeMCU
   pinMode(W5500_RST, OUTPUT);
   digitalWrite(W5500_RST, LOW);
   delay(50);
@@ -48,7 +48,7 @@ void loop() {
     Serial.println("Modbus ESP32 heartbeat");
     lastBeat = millis();
   }
-  // Data from Arduino Uno to DNP3 ESP32
+  // Data from Arduino Uno to NodeMCU
   EthernetClient client = server.available();
   if (client) {
     byte mbBuf[256];
@@ -69,11 +69,11 @@ void loop() {
 
     byte dnpBuf[260];
     int outLen = modbusToDnp3(mbBuf, mbLen, dnpBuf, sizeof(dnpBuf));
-    Serial.println(" -> sending to DNP3 board");
+    Serial.println(" -> sending to NodeMCU");
     Serial2.write(dnpBuf, outLen);
   }
 
-  // Data from DNP3 ESP32 back to sender
+  // Data from NodeMCU back to sender
   if (Serial2.available()) {
     byte inBuf[256];
     int len = Serial2.readBytes(inBuf, sizeof(inBuf));
