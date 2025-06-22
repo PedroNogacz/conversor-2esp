@@ -13,6 +13,17 @@ EthernetServer server(502); // Listen for Modbus TCP
 unsigned long lastBeat = 0;
 int ledState = LOW;
 
+// Buffers to keep history of sent/received messages
+#define HIST_SIZE 5
+struct Msg {
+  int len;
+  byte data[256];
+};
+Msg txHist[HIST_SIZE];
+Msg rxHist[HIST_SIZE];
+int txIndex = 0;
+int rxIndex = 0;
+
 // Simple placeholder translation routines -----------------------------
 int modbusToDnp3(const byte *in, int len, byte *out, int outSize) {
   if (outSize < len + 2) return 0;
@@ -41,9 +52,11 @@ void setup() {
   pinMode(LED_BUILTIN, OUTPUT);
   Ethernet.begin(mac, ip);
   if (Ethernet.localIP() != ip) {
-    Serial.print("Modbus ESP32 warning: IP mismatch ");
+    Serial.print("Modbus ESP32 error: IP mismatch ");
     Serial.println(Ethernet.localIP());
-    Ethernet.begin(mac, ip);
+    Serial.println("Restarting to reconfigure IP...");
+    delay(2000);
+    ESP.restart();
   }
   Serial.print("Modbus ESP32 IP: ");
   Serial.println(Ethernet.localIP());
@@ -60,6 +73,7 @@ void loop() {
   // Data from Arduino Uno to NodeMCU
   EthernetClient client = server.available();
   if (client) {
+    Serial.println("Connection from sender accepted");
     byte mbBuf[256];
     int mbLen = 0;
     Serial.println("Modbus ESP32 received from sender:");
@@ -76,16 +90,36 @@ void loop() {
     Serial.println();
     client.stop();
 
+    // store received message history
+    rxHist[rxIndex].len = mbLen;
+    memcpy(rxHist[rxIndex].data, mbBuf, mbLen);
+    rxIndex = (rxIndex + 1) % HIST_SIZE;
+
     byte dnpBuf[260];
     int outLen = modbusToDnp3(mbBuf, mbLen, dnpBuf, sizeof(dnpBuf));
+    Serial.print("Translated to DNP3: ");
+    for (int i = 0; i < outLen; i++) {
+      Serial.print("0x");
+      if (dnpBuf[i] < 16) Serial.print("0");
+      Serial.print(dnpBuf[i], HEX);
+      Serial.print(" ");
+    }
+    Serial.println();
     Serial.println(" -> sending to NodeMCU");
     Serial2.write(dnpBuf, outLen);
+    // store history of transmitted messages
+    txHist[txIndex].len = outLen;
+    memcpy(txHist[txIndex].data, dnpBuf, outLen);
+    txIndex = (txIndex + 1) % HIST_SIZE;
   }
 
   // Data from NodeMCU back to sender
   if (Serial2.available()) {
     byte inBuf[256];
     int len = Serial2.readBytes(inBuf, sizeof(inBuf));
+    rxHist[rxIndex].len = len;
+    memcpy(rxHist[rxIndex].data, inBuf, len);
+    rxIndex = (rxIndex + 1) % HIST_SIZE;
     Serial.print("Modbus ESP32 received DNP3: ");
     for (int i = 0; i < len; i++) {
       Serial.print("0x");
@@ -97,10 +131,27 @@ void loop() {
 
     byte mbBuf[260];
     int outLen = dnp3ToModbus(inBuf, len, mbBuf, sizeof(mbBuf));
+    Serial.print("Translated to Modbus: ");
+    for (int i = 0; i < outLen; i++) {
+      Serial.print("0x");
+      if (mbBuf[i] < 16) Serial.print("0");
+      Serial.print(mbBuf[i], HEX);
+      Serial.print(" ");
+    }
+    Serial.println();
     Serial.println(" -> forwarding to sender");
+    Serial.print("Connecting to sender...");
     if (outClient.connect(senderIp, 1502)) {
+      Serial.println("connected");
       outClient.write(mbBuf, outLen);
       outClient.stop();
+      // store history of transmitted messages
+      txHist[txIndex].len = outLen;
+      memcpy(txHist[txIndex].data, mbBuf, outLen);
+      txIndex = (txIndex + 1) % HIST_SIZE;
+      Serial.println("Message forwarded");
+    } else {
+      Serial.println("failed to connect");
     }
   }
 }

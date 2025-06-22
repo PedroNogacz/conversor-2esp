@@ -12,6 +12,17 @@ EthernetClient outClient;
 unsigned long lastBeat = 0;
 int ledState = LOW;
 
+// Buffers to keep history of sent/received messages
+#define HIST_SIZE 5
+struct Msg {
+  int len;
+  byte data[256];
+};
+Msg txHist[HIST_SIZE];
+Msg rxHist[HIST_SIZE];
+int txIndex = 0;
+int rxIndex = 0;
+
 void setup() {
   Serial.begin(115200); // Link with Modbus ESP32
   pinMode(W5500_RST, OUTPUT);
@@ -22,9 +33,11 @@ void setup() {
   pinMode(LED_BUILTIN, OUTPUT);
   Ethernet.begin(mac, ip);
   if (Ethernet.localIP() != ip) {
-    Serial.print("DNP3 ESP8266 warning: IP mismatch ");
+    Serial.print("DNP3 ESP8266 error: IP mismatch ");
     Serial.println(Ethernet.localIP());
-    Ethernet.begin(mac, ip);
+    Serial.println("Restarting to reconfigure IP...");
+    delay(2000);
+    ESP.restart();
   }
   Serial.print("DNP3 ESP8266 IP: ");
   Serial.println(Ethernet.localIP());
@@ -42,6 +55,9 @@ void loop() {
   if (Serial.available()) {
     byte buf[256];
     int len = Serial.readBytes(buf, sizeof(buf));
+    rxHist[rxIndex].len = len;
+    memcpy(rxHist[rxIndex].data, buf, len);
+    rxIndex = (rxIndex + 1) % HIST_SIZE;
     Serial.print("DNP3 ESP8266 received from Modbus: ");
     for (int i = 0; i < len; i++) {
       Serial.print("0x");
@@ -50,27 +66,48 @@ void loop() {
       Serial.print(" ");
     }
     Serial.println(" -> sending to PC");
+    Serial.print("Connecting to PC...");
     if (outClient.connect(pcIp, 20000)) {
+      Serial.println("connected");
       outClient.write(buf, len);
       outClient.stop();
+      txHist[txIndex].len = len;
+      memcpy(txHist[txIndex].data, buf, len);
+      txIndex = (txIndex + 1) % HIST_SIZE;
+      Serial.println("Message sent to PC");
+    } else {
+      Serial.println("failed to connect");
     }
   }
 
   // From PC to Modbus ESP32
   EthernetClient inc = server.available();
   if (inc) {
+    Serial.println("Connection from PC accepted");
     Serial.println("DNP3 ESP8266 received from PC:");
-    while (inc.connected()) {
+    byte buf[256];
+    int len = 0;
+    while (inc.connected() && len < sizeof(buf)) {
       if (inc.available()) {
         byte b = inc.read();
         Serial.print("0x");
         if (b < 16) Serial.print("0");
         Serial.print(b, HEX);
         Serial.print(" ");
+        buf[len++] = b;
         Serial.write(b);
       }
     }
     Serial.println();
     inc.stop();
+
+    txHist[txIndex].len = len;
+    memcpy(txHist[txIndex].data, buf, len);
+    txIndex = (txIndex + 1) % HIST_SIZE;
+    Serial.println("Message forwarded to Modbus ESP32");
+
+    rxHist[rxIndex].len = len;
+    memcpy(rxHist[rxIndex].data, buf, len);
+    rxIndex = (rxIndex + 1) % HIST_SIZE;
   }
 }
