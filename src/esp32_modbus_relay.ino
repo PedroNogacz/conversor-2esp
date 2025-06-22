@@ -11,6 +11,7 @@ EthernetClient outClient;
 
 EthernetServer server(502); // Listen for Modbus TCP
 unsigned long lastBeat = 0;
+int ledState = LOW;
 
 // Simple placeholder translation routines -----------------------------
 int modbusToDnp3(const byte *in, int len, byte *out, int outSize) {
@@ -37,7 +38,13 @@ void setup() {
   delay(50);
   digitalWrite(W5500_RST, HIGH);
   delay(50);
+  pinMode(LED_BUILTIN, OUTPUT);
   Ethernet.begin(mac, ip);
+  if (Ethernet.localIP() != ip) {
+    Serial.print("Modbus ESP32 warning: IP mismatch ");
+    Serial.println(Ethernet.localIP());
+    Ethernet.begin(mac, ip);
+  }
   Serial.print("Modbus ESP32 IP: ");
   Serial.println(Ethernet.localIP());
   server.begin();
@@ -46,6 +53,8 @@ void setup() {
 void loop() {
   if (millis() - lastBeat > 10000) {
     Serial.println("Modbus ESP32 heartbeat");
+    digitalWrite(LED_BUILTIN, ledState);
+    ledState = !ledState;
     lastBeat = millis();
   }
   // Data from Arduino Uno to NodeMCU

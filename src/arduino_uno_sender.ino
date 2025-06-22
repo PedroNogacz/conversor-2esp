@@ -12,10 +12,17 @@ IPAddress modbusIp(192, 168, 1, 60); // First ESP32 address
 EthernetServer server(1502); // For responses from Modbus ESP32
 
 EthernetClient client;
+int ledState = LOW;
 
 void setup() {
   Serial.begin(115200);
+  pinMode(LED_BUILTIN, OUTPUT);
   Ethernet.begin(mac, ip);
+  if (Ethernet.localIP() != ip) {
+    Serial.print("Sender warning: IP mismatch ");
+    Serial.println(Ethernet.localIP());
+    Ethernet.begin(mac, ip);
+  }
   Serial.print("Sender IP: ");
   Serial.println(Ethernet.localIP());
   server.begin();
@@ -28,6 +35,8 @@ unsigned long lastBeat = 0;
 void loop() {
   if (millis() - lastBeat > 10000) {
     Serial.println("Sender heartbeat");
+    digitalWrite(LED_BUILTIN, ledState);
+    ledState = !ledState;
     lastBeat = millis();
   }
   // Check for response from Modbus ESP32
