@@ -1,6 +1,9 @@
 #include <SPI.h>
 #include <Ethernet.h>
 
+// Arduino Uno sketch that periodically sends a Modbus frame using
+// a W5500-based Ethernet shield.
+
 // Replace with your network settings
 byte mac[] = { 0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED };
 IPAddress ip(192, 168, 1, 50); // Sender address

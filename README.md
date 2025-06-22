@@ -4,15 +4,15 @@ This repository documents the wiring and connection strategy for a dual-ESP syst
 
 ## Hardware layout
 
-- **Sender (ESP8266MOD Lolin NodeMCU)**: Generates Modbus commands. Periodically sends commands via Ethernet to the first ESP32.
-- **First ESP32-WROOM-32 + W5500**: Receives Modbus commands from the ESP8266 over the local network. It relays them over a direct serial connection to the second ESP32 and can also send data back to the ESP8266.
+- **Sender (Arduino Uno + W5500 Ethernet shield)**: Generates Modbus commands. Periodically sends commands via Ethernet to the first ESP32.
+- **First ESP32-WROOM-32 + W5500**: Receives Modbus commands from the Arduino over the local network. It relays them over a direct serial connection to the second ESP32 and can also send data back to the sender.
 - **Second ESP32-WROOM-32 + W5500**: Communicates with the first ESP32 over that serial link. It forwards Modbus frames to the PC as DNP3 and also accepts DNP3 frames from the PC to be returned to the sender.
 - **PC**: Runs the DNP3 master application.
 - **TP-Link 4‑port modem**: Provides Ethernet connectivity for all nodes.
 
 ### Ethernet port assignment
 
-1. **Port 1 – Sender (ESP8266)**
+1. **Port 1 – Sender (Arduino Uno)**
 2. **Port 2 – First ESP32 (Modbus side)**
 3. **Port 3 – Second ESP32 (DNP3 side)**
 4. **Port 4 – PC**
@@ -24,19 +24,19 @@ This repository documents the wiring and connection strategy for a dual-ESP syst
 3. **Power each ESP device** according to its requirements (typically 3.3&nbsp;V regulated power). Ensure grounds are common if using UART between ESP32 boards.
 4. **From the second ESP32, connect to the PC** via Ethernet over the TP-Link modem. The PC will receive DNP3 messages.
 
-With this arrangement, the ESP8266 sender places Modbus frames onto the network, the first ESP32 relays them via the serial link, and the second ESP32 converts the frames to DNP3 for the PC. Messages from the PC travel the reverse path back to the sender.
+With this arrangement, the Arduino Uno sender places Modbus frames onto the network, the first ESP32 relays them via the serial link, and the second ESP32 converts the frames to DNP3 for the PC. Messages from the PC travel the reverse path back to the sender.
 
 ### W5500 wiring for each board
 
 The W5500 Ethernet modules expose their SPI pins with labels like **S1**, **S2**, **SK**, **S0** and **RST**. Typical headers also include terminals in this order: **SCLK**, **GND**, **SCS**, **INT**, **MOSI**, **MISO**, **GND**, **3.3V**, **5V**, and **RST**. The table below maps the key signals to the board pins used in this project. The same mapping applies to both ESP32 boards.
 
-| W5500 label | Purpose | ESP8266 pin | ESP32 pin |
+| W5500 label | Purpose | Arduino pin | ESP32 pin |
 |-------------|---------|-------------|-----------|
-| S2          | MISO    | D6 (GPIO12) | GPIO19    |
-| S1          | MOSI    | D7 (GPIO13) | GPIO23    |
-| SK          | SCK     | D5 (GPIO14) | GPIO18    |
-| S0          | CS      | D8 (GPIO15) | GPIO5     |
-| RST         | Reset   | RST         | GPIO16    |
+| S2          | MISO    | D12         | GPIO19    |
+| S1          | MOSI    | D11         | GPIO23    |
+| SK          | SCK     | D13         | GPIO18    |
+| S0          | CS      | D10         | GPIO5     |
+| RST         | Reset   | RESET       | GPIO16    |
 | INT         | Interrupt | unused    | GPIO4     |
 
 Power each W5500 module from 3.3&nbsp;V and connect grounds to their respective ESP boards. The Ethernet jack on every W5500 goes to the TP-Link modem using the port assignments above.
@@ -50,7 +50,7 @@ Each W5500 terminal connects to only one microcontroller pin. Avoid wiring the s
 
 | Device             | Components               | Connections                                        |
 |--------------------|--------------------------|----------------------------------------------------|
-| **ESP8266 Sender** | ESP8266 board, W5500     | Ethernet to port 1                                 |
+| **Arduino Uno Sender** | Arduino Uno, W5500 shield | Ethernet to port 1 |
 | **Modbus ESP32**   | ESP32 board, W5500       | Ethernet to port 2, UART TX2/RX2 to DNP3 ESP32     |
 | **DNP3 ESP32**     | ESP32 board, W5500       | Ethernet to port 3, UART TX2/RX2 to Modbus ESP32   |
 | **PC**             | PC running DNP3 master   | Ethernet to port 4                                 |
