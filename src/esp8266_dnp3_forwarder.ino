@@ -56,8 +56,11 @@ void loop() {
   // From Modbus ESP32 to PC
   if (Serial.available()) {
     byte buf[256];
-    int len = Serial.readBytes(buf, sizeof(buf));
-    delay(1); // yield for watchdog
+    int len = 0;
+    while (Serial.available() && len < (int)sizeof(buf)) {
+      buf[len++] = Serial.read();
+      yield();
+    }
     rxHist[rxIndex].len = len;
     memcpy(rxHist[rxIndex].data, buf, len);
     rxIndex = (rxIndex + 1) % HIST_SIZE;
