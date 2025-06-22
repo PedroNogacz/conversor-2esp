@@ -123,8 +123,11 @@ void loop() {
   // Data from NodeMCU back to sender
   if (Serial2.available()) {
     byte inBuf[256];
-    int len = Serial2.readBytes(inBuf, sizeof(inBuf));
-    delay(1); // yield for watchdog
+    int len = 0;
+    while (Serial2.available() && len < (int)sizeof(inBuf)) {
+      inBuf[len++] = Serial2.read();
+      yield();
+    }
     rxHist[rxIndex].len = len;
     memcpy(rxHist[rxIndex].data, inBuf, len);
     rxIndex = (rxIndex + 1) % HIST_SIZE;
