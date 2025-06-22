@@ -23,8 +23,13 @@ void setup() {
 }
 
 unsigned long lastSend = 0;
+unsigned long lastBeat = 0;
 
 void loop() {
+  if (millis() - lastBeat > 10000) {
+    Serial.println("Sender heartbeat");
+    lastBeat = millis();
+  }
   // Check for response from Modbus ESP32
   EthernetClient inc = server.available();
   if (inc) {

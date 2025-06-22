@@ -10,6 +10,7 @@ const int W5500_RST = 16; // GPIO used to reset the Ethernet module
 EthernetClient outClient;
 
 EthernetServer server(502); // Listen for Modbus TCP
+unsigned long lastBeat = 0;
 
 // Simple placeholder translation routines -----------------------------
 int modbusToDnp3(const byte *in, int len, byte *out, int outSize) {
@@ -43,6 +44,10 @@ void setup() {
 }
 
 void loop() {
+  if (millis() - lastBeat > 10000) {
+    Serial.println("Modbus ESP32 heartbeat");
+    lastBeat = millis();
+  }
   // Data from Arduino Uno to DNP3 ESP32
   EthernetClient client = server.available();
   if (client) {
