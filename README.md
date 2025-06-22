@@ -4,7 +4,7 @@ This repository documents the wiring and connection strategy for a two-board sys
 
 ## Hardware layout
 
-- **Sender (Arduino Uno + W5500 Ethernet shield)**: Generates Modbus commands. Periodically sends commands via Ethernet to the first ESP32.
+- **Sender (Arduino Uno + W5500 Ethernet shield)**: Generates Modbus commands. Periodically sends commands via Ethernet to the first ESP32. The shield already contains the W5500 chip, so no separate module is required for the Uno.
 - **First ESP32-WROOM-32 + W5500**: Receives Modbus commands from the Arduino over the local network. It relays them over a direct serial connection to the NodeMCU board and can also send data back to the sender.
 - **NodeMCU ESP8266 + W5500**: Communicates with the ESP32 over that serial link. It forwards Modbus frames to the PC as DNP3 and also accepts DNP3 frames from the PC to be returned to the sender.
 - **PC**: Runs the DNP3 master application.
@@ -27,6 +27,8 @@ This repository documents the wiring and connection strategy for a two-board sys
 With this arrangement, the Arduino Uno sender places Modbus frames onto the network, the ESP32 relays them via the serial link, and the NodeMCU converts the frames to DNP3 for the PC. Messages from the PC travel the reverse path back to the sender.
 
 ### W5500 wiring for each board
+
+Note: The Arduino Uno uses a W5500 Ethernet shield with the SPI lines already wired to pins D10--D13. The table below lists these pins for reference.
 
 The W5500 Ethernet modules expose their SPI pins with labels like **S1**, **S2**, **SK**, **S0** and **RST**. Typical headers also include terminals in this order: **SCLK**, **GND**, **SCS**, **INT**, **MOSI**, **MISO**, **GND**, **3.3V**, **5V**, and **RST**. The table below maps the key signals to the board pins used in this project. The same mapping applies to the ESP32 and the NodeMCU.
 
