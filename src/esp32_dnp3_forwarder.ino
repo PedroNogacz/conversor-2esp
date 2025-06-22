@@ -10,6 +10,7 @@ const int W5500_RST = 16; // GPIO used to reset the Ethernet module
 EthernetServer server(20000); // Listen for PC
 EthernetClient outClient;
 unsigned long lastBeat = 0;
+int ledState = LOW;
 
 void setup() {
   Serial.begin(115200);
@@ -19,7 +20,13 @@ void setup() {
   delay(50);
   digitalWrite(W5500_RST, HIGH);
   delay(50);
+  pinMode(LED_BUILTIN, OUTPUT);
   Ethernet.begin(mac, ip);
+  if (Ethernet.localIP() != ip) {
+    Serial.print("DNP3 ESP32 warning: IP mismatch ");
+    Serial.println(Ethernet.localIP());
+    Ethernet.begin(mac, ip);
+  }
   Serial.print("DNP3 ESP32 IP: ");
   Serial.println(Ethernet.localIP());
   server.begin();
@@ -29,6 +36,8 @@ void setup() {
 void loop() {
   if (millis() - lastBeat > 10000) {
     Serial.println("DNP3 ESP32 heartbeat");
+    digitalWrite(LED_BUILTIN, ledState);
+    ledState = !ledState;
     lastBeat = millis();
   }
   // From Modbus ESP32 to PC
