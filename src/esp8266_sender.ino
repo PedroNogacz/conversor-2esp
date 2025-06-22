@@ -10,12 +10,17 @@ EthernetServer server(1502); // For responses from Modbus ESP32
 
 EthernetClient client;
 
+const int HEARTBEAT_PIN = LED_BUILTIN;
+unsigned long lastHeartbeat = 0;
+
 void setup() {
   Serial.begin(115200);
   Ethernet.begin(mac, ip);
   Serial.print("Sender IP: ");
   Serial.println(Ethernet.localIP());
   server.begin();
+  pinMode(HEARTBEAT_PIN, OUTPUT);
+  digitalWrite(HEARTBEAT_PIN, LOW);
   delay(1000);
 }
 
@@ -40,11 +45,18 @@ void loop() {
   // Periodically send frame to Modbus ESP32
   if (millis() - lastSend > 5000) {
     if (client.connect(modbusIp, 502)) { // Example Modbus TCP port
+      Serial.println("Connected to Modbus ESP32");
       byte frame[] = { 0x01, 0x03, 0x00, 0x00, 0x00, 0x02, 0xC4, 0x0B };
       client.write(frame, sizeof(frame));
       Serial.println("Sender transmitted Modbus frame");
       client.stop();
     }
     lastSend = millis();
+  }
+
+  if (millis() - lastHeartbeat > 1000) {
+    digitalWrite(HEARTBEAT_PIN, !digitalRead(HEARTBEAT_PIN));
+    Serial.println("Sender heartbeat");
+    lastHeartbeat = millis();
   }
 }

@@ -10,6 +10,9 @@ const int W5500_RST = 16; // GPIO used to reset the Ethernet module
 EthernetServer server(20000); // Listen for PC
 EthernetClient outClient;
 
+const int HEARTBEAT_PIN = LED_BUILTIN;
+unsigned long lastHeartbeat = 0;
+
 void setup() {
   Serial.begin(115200);
   Serial2.begin(115200); // Link with Modbus ESP32
@@ -22,6 +25,8 @@ void setup() {
   Serial.print("DNP3 ESP32 IP: ");
   Serial.println(Ethernet.localIP());
   server.begin();
+  pinMode(HEARTBEAT_PIN, OUTPUT);
+  digitalWrite(HEARTBEAT_PIN, LOW);
   delay(1000);
 }
 
@@ -39,6 +44,7 @@ void loop() {
     }
     Serial.println(" -> sending to PC");
     if (outClient.connect(pcIp, 20000)) {
+      Serial.println("Connected to PC");
       outClient.write(buf, len);
       outClient.stop();
     }
@@ -48,6 +54,7 @@ void loop() {
   EthernetClient inc = server.available();
   if (inc) {
     Serial.println("DNP3 ESP32 received from PC:");
+    Serial.println("Processing data from PC");
     while (inc.connected()) {
       if (inc.available()) {
         byte b = inc.read();
@@ -60,5 +67,11 @@ void loop() {
     }
     Serial.println();
     inc.stop();
+  }
+
+  if (millis() - lastHeartbeat > 1000) {
+    digitalWrite(HEARTBEAT_PIN, !digitalRead(HEARTBEAT_PIN));
+    Serial.println("DNP3 ESP32 heartbeat");
+    lastHeartbeat = millis();
   }
 }
