@@ -81,3 +81,12 @@ format is unwrapped back to Modbus before being forwarded to the sender. These
 examples are placeholders—replace them with real protocol handlers for a
 production system.
 
+### Handling watchdog resets
+
+If the ESP32 or ESP8266 suddenly resets with `Reset reason: 5` (shown in the
+boot log as `TG1WDT_SYS_RESET`), the watchdog timer has fired. This usually
+means the code spent too long inside a blocking function. Review any long
+initialization or read loops and insert `yield()` or short `delay()` calls so the
+watchdog can run. Adding `Serial.println` statements around those sections helps
+identify where the application gets stuck.
+
