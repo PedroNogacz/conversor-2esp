@@ -1,5 +1,6 @@
 #include <SPI.h>
 #include <Ethernet.h>
+#include <avr/wdt.h>
 
 // Arduino Uno sketch that periodically sends a Modbus frame using
 // a W5500-based Ethernet shield.
@@ -16,6 +17,8 @@ int ledState = LOW;
 
 void setup() {
   Serial.begin(115200);
+  Serial.print("Reset cause: 0x");
+  Serial.println(MCUSR, HEX);
   pinMode(LED_BUILTIN, OUTPUT);
   Ethernet.begin(mac, ip);
   if (Ethernet.localIP() != ip) {
@@ -49,6 +52,7 @@ void loop() {
       if (b < 16) Serial.print("0");
       Serial.print(b, HEX);
       Serial.print(" ");
+      delay(1); // yield while processing
     }
     Serial.println();
     inc.stop();
@@ -64,4 +68,5 @@ void loop() {
     }
     lastSend = millis();
   }
+  delay(1); // keep watchdog happy
 }

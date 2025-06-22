@@ -25,6 +25,8 @@ int rxIndex = 0;
 
 void setup() {
   Serial.begin(115200); // Link with Modbus ESP32
+  Serial.print("Reset reason: ");
+  Serial.println(ESP.getResetReason());
   pinMode(W5500_RST, OUTPUT);
   digitalWrite(W5500_RST, LOW);
   delay(50);
@@ -55,6 +57,7 @@ void loop() {
   if (Serial.available()) {
     byte buf[256];
     int len = Serial.readBytes(buf, sizeof(buf));
+    delay(1); // yield for watchdog
     rxHist[rxIndex].len = len;
     memcpy(rxHist[rxIndex].data, buf, len);
     rxIndex = (rxIndex + 1) % HIST_SIZE;
@@ -96,6 +99,8 @@ void loop() {
         Serial.print(" ");
         buf[len++] = b;
         Serial.write(b);
+      } else {
+        delay(1); // keep watchdog fed
       }
     }
     Serial.println();
@@ -110,4 +115,5 @@ void loop() {
     memcpy(rxHist[rxIndex].data, buf, len);
     rxIndex = (rxIndex + 1) % HIST_SIZE;
   }
+  delay(1); // yield to watchdog
 }
