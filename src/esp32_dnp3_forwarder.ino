@@ -63,6 +63,8 @@ void loop() {
         Serial.print(b, HEX);
         Serial.print(" ");
         Serial2.write(b);
+      } else {
+        delay(1); // keep watchdog happy
       }
     }
     Serial.println();

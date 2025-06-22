@@ -63,6 +63,8 @@ void loop() {
         Serial.print(b, HEX);
         Serial.print(" ");
         mbBuf[mbLen++] = b;
+      } else {
+        delay(1); // prevent watchdog reset
       }
     }
     Serial.println();
