@@ -9,6 +9,7 @@ const int W5500_RST = 16; // GPIO used to reset the Ethernet module
 
 EthernetServer server(20000); // Listen for PC
 EthernetClient outClient;
+unsigned long lastBeat = 0;
 
 void setup() {
   Serial.begin(115200);
@@ -26,6 +27,10 @@ void setup() {
 }
 
 void loop() {
+  if (millis() - lastBeat > 10000) {
+    Serial.println("DNP3 ESP32 heartbeat");
+    lastBeat = millis();
+  }
   // From Modbus ESP32 to PC
   if (Serial2.available()) {
     byte buf[256];
