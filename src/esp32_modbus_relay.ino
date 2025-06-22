@@ -1,5 +1,6 @@
 #include <SPI.h>
 #include <Ethernet.h>
+#include <esp_system.h>
 
 byte mac[] = { 0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0x01 };
 IPAddress ip(192, 168, 1, 60);
@@ -44,6 +45,8 @@ int dnp3ToModbus(const byte *in, int len, byte *out, int outSize) {
 void setup() {
   Serial.begin(115200);
   Serial2.begin(115200); // Link to NodeMCU
+  Serial.print("Reset reason: ");
+  Serial.println((int)esp_reset_reason());
   pinMode(W5500_RST, OUTPUT);
   digitalWrite(W5500_RST, LOW);
   delay(50);
@@ -85,6 +88,8 @@ void loop() {
         Serial.print(b, HEX);
         Serial.print(" ");
         mbBuf[mbLen++] = b;
+      } else {
+        delay(1); // yield to watchdog
       }
     }
     Serial.println();
@@ -117,6 +122,7 @@ void loop() {
   if (Serial2.available()) {
     byte inBuf[256];
     int len = Serial2.readBytes(inBuf, sizeof(inBuf));
+    delay(1); // yield for watchdog
     rxHist[rxIndex].len = len;
     memcpy(rxHist[rxIndex].data, inBuf, len);
     rxIndex = (rxIndex + 1) % HIST_SIZE;
@@ -154,4 +160,5 @@ void loop() {
       Serial.println("failed to connect");
     }
   }
+  delay(1); // yield to keep watchdog happy
 }
