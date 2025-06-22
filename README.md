@@ -1,6 +1,6 @@
 # conversor-2esp
 
-This repository documents the wiring and connection strategy for a two-board system that converts Modbus commands to DNP3 and back again.
+This repository documents the wiring and connection strategy for a Modbus-to-DNP3 bridge built from one ESP32 board and a NodeMCU ESP8266.  The ESP32 receives Modbus frames and passes them over a serial link to the NodeMCU, which forwards them as DNP3 traffic and returns responses the same way.
 
 ## Hardware layout
 
