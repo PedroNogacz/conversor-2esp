@@ -3,7 +3,7 @@
 
 byte mac[] = { 0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0x01 };
 IPAddress ip(192, 168, 1, 60);
-IPAddress senderIp(192, 168, 1, 50); // ESP8266 address
+IPAddress senderIp(192, 168, 1, 50); // Arduino Uno sender address
 
 const int W5500_RST = 16; // GPIO used to reset the Ethernet module
 
@@ -43,7 +43,7 @@ void setup() {
 }
 
 void loop() {
-  // Data from ESP8266 to DNP3 ESP32
+  // Data from Arduino Uno to DNP3 ESP32
   EthernetClient client = server.available();
   if (client) {
     byte mbBuf[256];
