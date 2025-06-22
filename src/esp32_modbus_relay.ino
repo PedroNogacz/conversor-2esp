@@ -1,5 +1,8 @@
 #include <SPI.h>
 #include <Ethernet.h>
+#ifndef LED_BUILTIN
+#define LED_BUILTIN 2
+#endif
 
 byte mac[] = { 0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0x01 };
 IPAddress ip(192, 168, 1, 60);
