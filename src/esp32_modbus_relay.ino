@@ -79,6 +79,7 @@ void loop() {
   EthernetClient client = server.available();
   if (client) {
     Serial.println("Connection from sender accepted");
+    unsigned long rxStart = micros();
     byte mbBuf[256];
     int mbLen = 0;
     Serial.println("Modbus ESP32 received from sender:");
@@ -94,6 +95,9 @@ void loop() {
         delay(1); // yield to watchdog
       }
     }
+    unsigned long rxEnd = micros();
+    Serial.print("Time to receive us: ");
+    Serial.println(rxEnd - rxStart);
     Serial.println();
     client.stop();
 
@@ -103,7 +107,11 @@ void loop() {
     rxIndex = (rxIndex + 1) % HIST_SIZE;
 
     byte dnpBuf[260];
+    unsigned long transStart = micros();
     int outLen = modbusToDnp3(mbBuf, mbLen, dnpBuf, sizeof(dnpBuf));
+    unsigned long transEnd = micros();
+    Serial.print("Translation us: ");
+    Serial.println(transEnd - transStart);
     Serial.print("Translated to DNP3: ");
     for (int i = 0; i < outLen; i++) {
       Serial.print("0x");
@@ -113,7 +121,10 @@ void loop() {
     }
     Serial.println();
     Serial.println(" -> sending to NodeMCU");
+    unsigned long txStart = micros();
     Serial2.write(dnpBuf, outLen);
+    Serial.print("Send time us: ");
+    Serial.println(micros() - txStart);
     // store history of transmitted messages
     txHist[txIndex].len = outLen;
     memcpy(txHist[txIndex].data, dnpBuf, outLen);
@@ -141,7 +152,11 @@ void loop() {
     Serial.println();
 
     byte mbBuf[260];
+    unsigned long trans2Start = micros();
     int outLen = dnp3ToModbus(inBuf, len, mbBuf, sizeof(mbBuf));
+    unsigned long trans2End = micros();
+    Serial.print("Translation us: ");
+    Serial.println(trans2End - trans2Start);
     Serial.print("Translated to Modbus: ");
     for (int i = 0; i < outLen; i++) {
       Serial.print("0x");
@@ -154,8 +169,11 @@ void loop() {
     Serial.print("Connecting to sender...");
     if (outClient.connect(senderIp, 1502)) {
       Serial.println("connected");
-      outClient.write(mbBuf, outLen);
-      outClient.stop();
+        unsigned long tx2Start = micros();
+        outClient.write(mbBuf, outLen);
+        outClient.stop();
+        Serial.print("Send time us: ");
+        Serial.println(micros() - tx2Start);
       // store history of transmitted messages
       txHist[txIndex].len = outLen;
       memcpy(txHist[txIndex].data, mbBuf, outLen);
