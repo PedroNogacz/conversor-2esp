@@ -2,6 +2,22 @@
 #include <Ethernet.h>
 #include <esp_system.h>
 
+/*
+  Device: **second ESP32** acting on the DNP3 side (port 3 on the modem)
+
+  This board receives the pseudo-DNP3 frames from the Modbus ESP32 over the
+  UART link and forwards them to the PC via its W5500 Ethernet interface.
+  The SPI wiring of the W5500 is the same as on the first ESP32:
+      MISO -> GPIO19
+      MOSI -> GPIO23
+      SCK  -> GPIO18
+      CS   -> GPIO5
+      RST  -> GPIO16
+      INT  -> GPIO4 (unused)
+  Serial communication uses TX (GPIO1) and RX (GPIO3) connected to the
+  Modbus ESP32's RX2/TX2 pins respectively.
+*/
+
 byte mac[] = { 0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0x03 };
 IPAddress ip(192, 168, 1, 70);
 IPAddress pcIp(192, 168, 1, 80);

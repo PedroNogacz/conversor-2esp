@@ -89,6 +89,18 @@ format is unwrapped back to Modbus before being forwarded to the sender. These
 examples are placeholders—replace them with real protocol handlers for a
 production system.
 
+Internally the sketch implements two helper functions:
+
+```
+int modbusToDnp3(const byte *in, int len, byte *out, int outSize);
+int dnp3ToModbus(const byte *in, int len, byte *out, int outSize);
+```
+
+`modbusToDnp3()` simply prepends `0x05` and appends `0x16` around the Modbus
+payload so the resulting message looks like `05 <payload> 16`. The reverse
+function `dnp3ToModbus()` removes these start and end bytes. This minimal
+conversion demonstrates where a full Modbus–to–DNP3 parser would be placed.
+
 ### Handling watchdog resets
 
 If either ESP32 suddenly resets with `Reset reason: 5` (shown in the

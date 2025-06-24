@@ -1,3 +1,11 @@
+"""
+PC-side helper used to observe traffic from the second ESP32.
+
+The script listens on TCP port 20000 and prints any bytes it receives.
+It is useful for verifying the Modbus<->DNP3 conversion performed by
+the two ESP32 boards.
+"""
+
 import socket
 from datetime import datetime
 

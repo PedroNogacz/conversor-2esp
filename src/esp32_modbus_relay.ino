@@ -1,6 +1,21 @@
 #include <SPI.h>
 #include <Ethernet.h>
 #include <esp_system.h>
+
+/*
+  Device: **Modbus ESP32** (port 2 on the modem)
+
+  This board receives Modbus TCP frames from the Arduino sender over
+  Ethernet.  The W5500 module connects via SPI using the following pins:
+      MISO -> GPIO19
+      MOSI -> GPIO23
+      SCK  -> GPIO18
+      CS   -> GPIO5
+      RST  -> GPIO16
+      INT  -> GPIO4 (unused)
+  The board forwards converted frames to the second ESP32 via Serial2
+  (TX2=GPIO17 to its RX, and RX2=GPIO16 from its TX).
+*/
 #ifndef LED_BUILTIN
 #define LED_BUILTIN 2
 #endif
@@ -28,19 +43,24 @@ int txIndex = 0;
 int rxIndex = 0;
 
 // Simple placeholder translation routines -----------------------------
+// In this example a "DNP3" message is just the Modbus payload surrounded by
+// a start byte 0x05 and an end byte 0x16.  Real DNP3 framing is far more
+// involved, but the following routines show where protocol conversion would
+// occur in a real project.
 int modbusToDnp3(const byte *in, int len, byte *out, int outSize) {
-  if (outSize < len + 2) return 0;
-  out[0] = 0x05;                // pretend DNP3 start
-  memcpy(out + 1, in, len);
-  out[len + 1] = 0x16;          // pretend DNP3 end
-  return len + 2;
+  if (outSize < len + 2) return 0;   // ensure buffer large enough
+  out[0] = 0x05;                     // start of fictitious DNP3 frame
+  memcpy(out + 1, in, len);          // copy Modbus bytes
+  out[len + 1] = 0x16;               // end of frame
+  return len + 2;                    // total length of new buffer
 }
 
+// Remove the 0x05 start byte and 0x16 end byte to retrieve the Modbus command
 int dnp3ToModbus(const byte *in, int len, byte *out, int outSize) {
-  if (len < 2) return 0;        // too short
+  if (len < 2) return 0;             // too short to contain framing
   int count = len - 2;
   if (count > outSize) count = outSize;
-  memcpy(out, in + 1, count);   // strip start/end bytes
+  memcpy(out, in + 1, count);        // copy payload without wrapper
   return count;
 }
 

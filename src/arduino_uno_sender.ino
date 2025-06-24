@@ -2,9 +2,22 @@
 #include <Ethernet.h>
 #include <avr/wdt.h>
 
-// Arduino Uno sketch that periodically sends either a Modbus or DNP3 frame
-// using a W5500-based Ethernet shield. A push button on pin 2 toggles the
-// destination between the Modbus and DNP3 ESP32 boards.
+/*
+  Device: **Arduino Uno** with W5500 Ethernet shield (port 1 on the modem)
+
+  This sketch generates a simple test Modbus frame every five seconds and
+  sends it to the Modbus ESP32.  When the push button on pin 2 is pressed it
+  instead wraps the frame in a very small DNP3 envelope and sends it to the
+  second ESP32.  The Ethernet shield already wires the W5500 pins to the Uno
+  as follows:
+      CS   -> D10
+      MOSI -> D11
+      MISO -> D12
+      SCK  -> D13
+
+  The RJ45 connector on the shield links to the TP-Link modem so the ESP32
+  boards can receive the traffic.
+*/
 
 // Replace with your network settings
 byte mac[] = { 0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED };
@@ -16,7 +29,8 @@ EthernetServer server(1502); // For responses from Modbus ESP32
 
 EthernetClient client;
 int ledState = LOW;
-const int MODE_BTN = 2;
+const int MODE_BTN = 2; // connect one side of the push button here and the
+                        // other side to GND
 bool sendModbus = true;
 bool lastBtn = HIGH;
 
