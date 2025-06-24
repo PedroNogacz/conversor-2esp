@@ -23,6 +23,7 @@ This repository documents the wiring and connection strategy for a Modbus-to-DNP
 2. **Link the ESP32 and second ESP32 boards** with a direct UART connection. Connect TX2 (GPIO17) on the Modbus ESP32 to RX (GPIO3) on the second ESP32 and connect TX (GPIO1) on the second ESP32 back to RX2 (GPIO16) on the ESP32. This serial link carries the translated command from the ESP32 to the second ESP32.
 3. **Power each ESP device** according to its requirements (typically 3.3&nbsp;V regulated power). Ensure grounds are common if using UART between the ESP32 and second ESP32.
 4. **From the second ESP32, connect to the PC** via Ethernet over the TP-Link modem. The PC will receive DNP3 messages.
+5. **Wire a mode button to the Arduino Uno**. Connect one side of a push button to digital pin 2 and the other side to GND. The sketch uses the internal pull-up resistor so the default state selects Modbus mode.
 
 With this arrangement, the Arduino Uno sender places Modbus frames onto the network, the ESP32 relays them via the serial link, and the second ESP32 converts the frames to DNP3 for the PC. Messages from the PC travel the reverse path back to the sender.
 
@@ -32,18 +33,18 @@ Note: The Arduino Uno uses a W5500 Ethernet shield with the SPI lines already wi
 
 The W5500 Ethernet modules expose their SPI pins with labels like **S1**, **S2**, **SK**, **S0** and **RST**. Typical headers also include terminals in this order: **SCLK**, **GND**, **SCS**, **INT**, **MOSI**, **MISO**, **GND**, **3.3V**, **5V**, and **RST**. The table below maps the key signals to the board pins used in this project. The same mapping applies to the ESP32 and the second ESP32.
 
-| W5500 label | Purpose | Arduino pin | ESP32 pin | ESP8266 pin |
-|-------------|---------|-------------|-----------|--------------|
-| S2          | MISO    | D12         | GPIO19    | D6 (GPIO12)  |
-| S1          | MOSI    | D11         | GPIO23    | D7 (GPIO13)  |
-| SK          | SCK     | D13         | GPIO18    | D5 (GPIO14)  |
-| S0          | CS      | D10         | GPIO5     | D8 (GPIO15)  |
-| RST         | Reset   | RESET       | GPIO16    | D0 (GPIO16)  |
-| INT         | Interrupt | unused    | GPIO4     | D4 (GPIO2)   |
+| W5500 label | Purpose | Arduino pin | ESP32 pin |
+|-------------|---------|-------------|-----------|
+| S2          | MISO    | D12         | GPIO19    |
+| S1          | MOSI    | D11         | GPIO23    |
+| SK          | SCK     | D13         | GPIO18    |
+| S0          | CS      | D10         | GPIO5     |
+| RST         | Reset   | RESET       | GPIO16    |
+| INT         | Interrupt | unused    | GPIO4     |
 
 Power each W5500 module from 3.3&nbsp;V and connect grounds to the ESP32 and second ESP32. The Ethernet jack on every W5500 goes to the TP-Link modem using the port assignments above.
 
-Connect the **RST** terminal so the ESP32 or second ESP32 can reset the W5500 during setup. The example sketches pulse GPIO16 (or D0 on the second ESP32) low for a short period at startup before bringing it high.
+Connect the **RST** terminal so the ESP32 or second ESP32 can reset the W5500 during setup. The example sketches pulse GPIO16 on each board low for a short period at startup before bringing it high.
 #### Dedicated connections
 Each W5500 terminal connects to only one microcontroller pin. Avoid wiring the same W5500 signal to more than one GPIO. The serial link is also one-to-one: connect TX2 on each ESP32 solely to the other board's RX2.
 
@@ -73,6 +74,13 @@ The ESP32-WROOM-32 exposes UART2 as **TX2** (GPIO17) and **RX2** (GPIO16). The s
 | second ESP32          | TX        | 1    | Modbus ESP32 RX2 |
 | second ESP32          | RX        | 3    | Modbus ESP32 TX2 |
 
+### Mode selection button
+
+The Arduino sketch reads a push button on digital pin&nbsp;2 to choose which
+protocol it sends. In the unpressed state the Uno transmits Modbus frames to the
+Modbus ESP32. Pressing the button toggles to DNP3 mode and the same frame is
+wrapped in a minimal DNP3 header and sent to the DNP3 ESP32 every five seconds.
+
 ### Translation overview
 
 The Modbus ESP32 includes simple routines that wrap Modbus frames inside a
@@ -83,7 +91,7 @@ production system.
 
 ### Handling watchdog resets
 
-If the ESP32 or ESP8266 suddenly resets with `Reset reason: 5` (shown in the
+If either ESP32 suddenly resets with `Reset reason: 5` (shown in the
 boot log as `TG1WDT_SYS_RESET`), the watchdog timer has fired. This usually
 means the code spent too long inside a blocking function. Review any long
 initialization or read loops and insert `yield()` or short `delay()` calls so the

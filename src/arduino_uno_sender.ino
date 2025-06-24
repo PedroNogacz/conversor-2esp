@@ -2,24 +2,30 @@
 #include <Ethernet.h>
 #include <avr/wdt.h>
 
-// Arduino Uno sketch that periodically sends a Modbus frame using
-// a W5500-based Ethernet shield.
+// Arduino Uno sketch that periodically sends either a Modbus or DNP3 frame
+// using a W5500-based Ethernet shield. A push button on pin 2 toggles the
+// destination between the Modbus and DNP3 ESP32 boards.
 
 // Replace with your network settings
 byte mac[] = { 0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED };
 IPAddress ip(192, 168, 1, 50); // Sender address
-IPAddress modbusIp(192, 168, 1, 60); // First ESP32 address
+IPAddress modbusIp(192, 168, 1, 60); // Modbus ESP32 address
+IPAddress dnpIp(192, 168, 1, 70);    // DNP3 ESP32 address
 
 EthernetServer server(1502); // For responses from Modbus ESP32
 
 EthernetClient client;
 int ledState = LOW;
+const int MODE_BTN = 2;
+bool sendModbus = true;
+bool lastBtn = HIGH;
 
 void setup() {
   Serial.begin(115200);
   Serial.print("Reset cause: 0x");
   Serial.println(MCUSR, HEX);
   pinMode(LED_BUILTIN, OUTPUT);
+  pinMode(MODE_BTN, INPUT_PULLUP);
   Ethernet.begin(mac, ip);
   if (Ethernet.localIP() != ip) {
     Serial.print("Sender warning: IP mismatch ");
@@ -58,13 +64,36 @@ void loop() {
     inc.stop();
   }
 
-  // Periodically send frame to Modbus ESP32
+  // Check mode button
+  bool btn = digitalRead(MODE_BTN);
+  if (btn == LOW && lastBtn == HIGH) {
+    sendModbus = !sendModbus;
+    Serial.print("Mode changed to: ");
+    Serial.println(sendModbus ? "Modbus" : "DNP3");
+    delay(200); // debounce
+  }
+  lastBtn = btn;
+
+  // Periodically send frame based on selected mode
   if (millis() - lastSend > 5000) {
-    if (client.connect(modbusIp, 502)) { // Example Modbus TCP port
-      byte frame[] = { 0x01, 0x03, 0x00, 0x00, 0x00, 0x02, 0xC4, 0x0B };
-      client.write(frame, sizeof(frame));
-      Serial.println("Sender transmitted Modbus frame");
-      client.stop();
+    if (sendModbus) {
+      if (client.connect(modbusIp, 502)) { // Modbus TCP port
+        byte frame[] = { 0x01, 0x03, 0x00, 0x00, 0x00, 0x02, 0xC4, 0x0B };
+        client.write(frame, sizeof(frame));
+        Serial.println("Sender transmitted Modbus frame");
+        client.stop();
+      }
+    } else {
+      if (client.connect(dnpIp, 20000)) { // DNP3 port
+        byte frame[] = { 0x01, 0x03, 0x00, 0x00, 0x00, 0x02, 0xC4, 0x0B };
+        byte dnp[sizeof(frame) + 2];
+        dnp[0] = 0x05;
+        memcpy(dnp + 1, frame, sizeof(frame));
+        dnp[sizeof(frame) + 1] = 0x16;
+        client.write(dnp, sizeof(dnp));
+        Serial.println("Sender transmitted DNP3 frame");
+        client.stop();
+      }
     }
     lastSend = millis();
   }
