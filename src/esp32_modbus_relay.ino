@@ -46,7 +46,7 @@ int dnp3ToModbus(const byte *in, int len, byte *out, int outSize) {
 
 void setup() {
   Serial.begin(115200);
-  Serial2.begin(115200); // Link to NodeMCU
+  Serial2.begin(115200); // Link to DNP3 ESP32
   Serial.print("Reset reason: ");
   Serial.println((int)esp_reset_reason());
   pinMode(W5500_RST, OUTPUT);
@@ -75,7 +75,7 @@ void loop() {
     ledState = !ledState;
     lastBeat = millis();
   }
-  // Data from Arduino Uno to NodeMCU
+  // Data from Arduino Uno to DNP3 ESP32
   EthernetClient client = server.available();
   if (client) {
     Serial.println("Connection from sender accepted");
@@ -120,7 +120,7 @@ void loop() {
       Serial.print(" ");
     }
     Serial.println();
-    Serial.println(" -> sending to NodeMCU");
+    Serial.println(" -> sending to DNP3 ESP32");
     unsigned long txStart = micros();
     Serial2.write(dnpBuf, outLen);
     Serial.print("Send time us: ");
@@ -131,7 +131,7 @@ void loop() {
     txIndex = (txIndex + 1) % HIST_SIZE;
   }
 
-  // Data from NodeMCU back to sender
+  // Data from DNP3 ESP32 back to sender
   if (Serial2.available()) {
     byte inBuf[256];
     int len = 0;
