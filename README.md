@@ -106,3 +106,8 @@ The repository includes `pc_dnp3_listener.py` which opens port 20000 and prints 
 frames received from the converter. It decodes whether the bytes represent a
 plain Modbus message or a DNP3-wrapped payload and identifies which of the two
 example commands was transmitted.
+
+An alternate script, `pc_dnp3_gui.py`, provides a basic graphical interface for
+the same listener. It opens a Tkinter window that displays each connection's
+source IP address, the arrival time, the bytes and bits received, the detected
+protocol, and which example command was matched.
