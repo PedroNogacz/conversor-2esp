@@ -78,8 +78,10 @@ The ESP32-WROOM-32 exposes UART2 as **TX2** (GPIO17) and **RX2** (GPIO16). The s
 
 The Arduino sketch reads a push button on digital pin&nbsp;2 to choose which
 protocol it sends. In the unpressed state the Uno transmits Modbus frames to the
-Modbus ESP32. Pressing the button toggles to DNP3 mode and the same frame is
+Modbus ESP32. Pressing the button toggles to DNP3 mode and the same frames are
 wrapped in a minimal DNP3 header and sent to the DNP3 ESP32 every five seconds.
+Two example requests are issued in rotation: a **Read Holding Registers** and a
+**Read Input Registers** command.
 
 ### Translation overview
 
@@ -101,5 +103,6 @@ identify where the application gets stuck.
 
 ### PC listener
 The repository includes `pc_dnp3_listener.py` which opens port 20000 and prints any
-received DNP3 frames. It shows each byte in binary and compares the payload to the
-Modbus command sent by the Arduino.
+frames received from the converter. It decodes whether the bytes represent a
+plain Modbus message or a DNP3-wrapped payload and identifies which of the two
+example commands was transmitted.
