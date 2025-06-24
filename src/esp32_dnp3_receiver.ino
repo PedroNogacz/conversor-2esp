@@ -5,6 +5,22 @@
 #define LED_BUILTIN 2
 #endif
 
+static const char *resetReasonToString(esp_reset_reason_t reason) {
+  switch (reason) {
+    case ESP_RST_POWERON:   return "POWERON";
+    case ESP_RST_EXT:       return "EXT";
+    case ESP_RST_SW:        return "SOFTWARE";
+    case ESP_RST_PANIC:     return "PANIC";
+    case ESP_RST_INT_WDT:   return "INT_WDT";
+    case ESP_RST_TASK_WDT:  return "TASK_WDT";
+    case ESP_RST_WDT:       return "WDT";
+    case ESP_RST_DEEPSLEEP: return "DEEPSLEEP";
+    case ESP_RST_BROWNOUT:  return "BROWNOUT";
+    case ESP_RST_SDIO:      return "SDIO";
+    default:                return "UNKNOWN";
+  }
+}
+
 byte mac[] = { 0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0x03 };
 IPAddress ip(192, 168, 1, 70);
 IPAddress pcIp(192, 168, 1, 80);
@@ -30,8 +46,12 @@ int rxIndex = 0;
 void setup() {
   Serial.begin(115200);
   Serial2.begin(115200); // Link to Modbus ESP32
+  esp_reset_reason_t reason = esp_reset_reason();
   Serial.print("Reset reason: ");
-  Serial.println((int)esp_reset_reason());
+  Serial.print(resetReasonToString(reason));
+  Serial.print(" (");
+  Serial.print((int)reason);
+  Serial.println(")");
   pinMode(W5500_RST, OUTPUT);
   digitalWrite(W5500_RST, LOW);
   delay(50);
