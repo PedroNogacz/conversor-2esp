@@ -1,6 +1,9 @@
 #include <SPI.h>
 #include <Ethernet.h>
 #include <esp_system.h>
+#ifndef LED_BUILTIN
+#define LED_BUILTIN 2
+#endif
 
 byte mac[] = { 0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0x03 };
 IPAddress ip(192, 168, 1, 70);
@@ -28,7 +31,7 @@ void setup() {
   Serial.begin(115200);
   Serial2.begin(115200); // Link to Modbus ESP32
   Serial.print("Reset reason: ");
-  Serial.println(ESP.getResetReason());
+  Serial.println((int)esp_reset_reason());
   pinMode(W5500_RST, OUTPUT);
   digitalWrite(W5500_RST, LOW);
   delay(50);
