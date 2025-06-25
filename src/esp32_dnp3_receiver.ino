@@ -48,6 +48,46 @@ Msg rxHist[HIST_SIZE];
 int txIndex = 0;
 int rxIndex = 0;
 
+// Attempt to bring up the Ethernet interface while keeping the watchdog fed.
+static bool startEthernet()
+{
+  Serial.println("Starting Ethernet");
+  for (int attempt = 0; attempt < 3; attempt++) {
+    Ethernet.begin(mac, ip);
+    delay(100);
+    if (Ethernet.hardwareStatus() != EthernetNoHardware &&
+        Ethernet.localIP() == ip) {
+      Serial.println("Ethernet ready");
+      return true;
+    }
+    Serial.println("Ethernet failed, resetting W5500...");
+    digitalWrite(W5500_RST, LOW);
+    delay(50);
+    digitalWrite(W5500_RST, HIGH);
+    for (int i = 0; i < 20; i++) { // ~200 ms delay while yielding
+      delay(10);
+      yield();
+    }
+  }
+  return false;
+}
+
+// Connect to a peer with small yields between attempts.
+static bool connectWithRetry(EthernetClient &cli, IPAddress addr, uint16_t port)
+{
+  for (int attempt = 0; attempt < 3; attempt++) {
+    if (cli.connect(addr, port)) {
+      return true;
+    }
+    Serial.println("connect failed, retrying");
+    for (int i = 0; i < 20; i++) {
+      delay(10);
+      yield();
+    }
+  }
+  return false;
+}
+
 // Configure the Ethernet interface and serial link to the Modbus ESP32.
 void setup() {
   Serial.begin(115200);
@@ -64,11 +104,8 @@ void setup() {
   digitalWrite(W5500_RST, HIGH);
   delay(50);
   pinMode(LED_BUILTIN, OUTPUT);
-  Ethernet.begin(mac, ip);
-  if (Ethernet.localIP() != ip) {
-    Serial.print("DNP3 ESP32 error: IP mismatch ");
-    Serial.println(Ethernet.localIP());
-    Serial.println("Restarting to reconfigure IP...");
+  if (!startEthernet()) {
+    Serial.println("DNP3 ESP32 error: unable to start Ethernet");
     delay(2000);
     ESP.restart();
   }
@@ -110,7 +147,7 @@ void loop() {
     }
     Serial.println(" -> sending to PC");
     Serial.print("Connecting to PC...");
-    if (outClient.connect(pcIp, 20000)) {
+    if (connectWithRetry(outClient, pcIp, 20000)) {
         Serial.println("connected");
         unsigned long txStart = micros();
         outClient.write(buf, len);
