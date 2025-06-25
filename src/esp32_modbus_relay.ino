@@ -29,6 +29,7 @@ const int W5500_RST = 16; // GPIO used to reset the Ethernet module
 EthernetClient outClient;
 
 EthernetServer server(502); // Listen for Modbus TCP
+const unsigned long HEARTBEAT_INTERVAL = 5000; // 5 second LED blink
 unsigned long lastBeat = 0;
 int ledState = LOW;
 
@@ -89,7 +90,7 @@ void setup() {
 }
 
 void loop() {
-  if (millis() - lastBeat > 10000) {
+  if (millis() - lastBeat > HEARTBEAT_INTERVAL) {
     Serial.println("Modbus ESP32 heartbeat");
     digitalWrite(LED_BUILTIN, ledState);
     ledState = !ledState;
