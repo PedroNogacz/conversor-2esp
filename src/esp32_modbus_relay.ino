@@ -38,6 +38,49 @@ const unsigned long HEARTBEAT_INTERVAL = 5000; // 5 second LED blink
 unsigned long lastBeat = 0;
 int ledState = LOW;
 
+// Attempt to start the Ethernet interface with a few retries. This guards
+// against the W5500 not responding on the first try which can otherwise hang
+// the sketch inside Ethernet.begin().
+static bool startEthernet()
+{
+  Serial.println("Starting Ethernet");
+  for (int attempt = 0; attempt < 3; attempt++) {
+    Ethernet.begin(mac, ip);
+    delay(100);
+    if (Ethernet.hardwareStatus() != EthernetNoHardware &&
+        Ethernet.localIP() == ip) {
+      Serial.println("Ethernet ready");
+      return true;
+    }
+    Serial.println("Ethernet failed, resetting W5500...");
+    digitalWrite(W5500_RST, LOW);
+    delay(50);
+    digitalWrite(W5500_RST, HIGH);
+    for (int i = 0; i < 20; i++) { // ~200 ms delay while yielding
+      delay(10);
+      yield();
+    }
+  }
+  return false;
+}
+
+// Connect with small delays so the watchdog stays fed if the remote side
+// is unreachable. Returns true when the connection succeeds.
+static bool connectWithRetry(EthernetClient &cli, IPAddress addr, uint16_t port)
+{
+  for (int attempt = 0; attempt < 3; attempt++) {
+    if (cli.connect(addr, port)) {
+      return true;
+    }
+    Serial.println("connect failed, retrying");
+    for (int i = 0; i < 20; i++) { // ~200 ms between attempts
+      delay(10);
+      yield();
+    }
+  }
+  return false;
+}
+
 // Buffers to keep history of sent/received messages
 #define HIST_SIZE 5
 struct Msg {
@@ -85,11 +128,8 @@ void setup() {
   digitalWrite(W5500_RST, HIGH);
   delay(50);
   pinMode(LED_BUILTIN, OUTPUT);
-  Ethernet.begin(mac, ip);
-  if (Ethernet.localIP() != ip) {
-    Serial.print("Modbus ESP32 error: IP mismatch ");
-    Serial.println(Ethernet.localIP());
-    Serial.println("Restarting to reconfigure IP...");
+  if (!startEthernet()) {
+    Serial.println("Modbus ESP32 error: unable to start Ethernet");
     delay(2000);
     ESP.restart();
   }
@@ -203,7 +243,7 @@ void loop() {
     Serial.println();
     Serial.println(" -> forwarding to sender");
     Serial.print("Connecting to sender...");
-    if (outClient.connect(senderIp, 1502)) {
+    if (connectWithRetry(outClient, senderIp, 1502)) {
       Serial.println("connected");
         unsigned long tx2Start = micros();
         outClient.write(mbBuf, outLen);

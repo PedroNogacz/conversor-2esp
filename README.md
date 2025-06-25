@@ -100,6 +100,15 @@ initialization or read loops and insert `yield()` or short `delay()` calls so th
 watchdog can run. Adding `Serial.println` statements around those sections helps
 identify where the application gets stuck.
 
+### Guarding against connection hangs
+
+Helper functions in the sketches retry `Ethernet.begin()` and TCP `connect()`
+operations. If the W5500 fails to initialise or SPI locks up, the code resets
+the module and checks `Ethernet.hardwareStatus()` before trying again. Each
+attempt pauses with `delay()`/`yield()` so the watchdog keeps running. After
+several unsuccessful tries the board reboots, helping recover from wiring or
+network faults.
+
 
 ### PC listener
 The repository includes `pc_dnp3_listener.py` which opens port 20000 and prints any
