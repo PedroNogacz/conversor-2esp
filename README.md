@@ -97,8 +97,9 @@ If either ESP32 suddenly resets with `Reset reason: 5` (shown in the
 boot log as `TG1WDT_SYS_RESET`), the watchdog timer has fired. This usually
 means the code spent too long inside a blocking function. Review any long
 initialization or read loops and insert `yield()` or short `delay()` calls so the
-watchdog can run. Adding `Serial.println` statements around those sections helps
-identify where the application gets stuck.
+watchdog can run. These sketches now call `yield()` inside lengthy print loops
+so the watchdog never starves. Adding `Serial.println` statements around long
+operations can also help identify where the application gets stuck.
 
 
 ### PC listener
