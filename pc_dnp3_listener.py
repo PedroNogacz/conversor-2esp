@@ -1,3 +1,10 @@
+"""Command-line listener for frames from the Modbus/DNP3 bridge.
+
+This version prints each message received on TCP port 20000.  It shows
+the raw bytes, the bit representation and whether the payload matches
+one of the example Modbus commands wrapped in DNP3 framing.
+"""
+
 import socket
 from datetime import datetime
 
@@ -7,13 +14,16 @@ MODBUS_CMDS = [
 ]
 
 def is_dnp3(data: bytes) -> bool:
+    """Return True if *data* looks like a DNP3 frame."""
     return len(data) >= 2 and data[0] == 0x05 and data[-1] == 0x16
 
 def print_bits(data: bytes):
+    """Print a binary representation of the received bytes."""
     print('bits:', ' '.join(f'{b:08b}' for b in data))
 
 
 def main():
+    """Run the blocking command-line listener."""
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     s.bind(('0.0.0.0', 20000))
     s.listen(1)

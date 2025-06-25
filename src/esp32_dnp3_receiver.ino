@@ -1,10 +1,14 @@
 #include <SPI.h>
 #include <Ethernet.h>
 #include <esp_system.h>
+
+// ESP32 sketch that forwards Modbus data to a PC as DNP3 frames and
+// routes any PC responses back to the Modbus ESP32 over a serial link.
 #ifndef LED_BUILTIN
 #define LED_BUILTIN 2
 #endif
 
+// Helper that converts the ESP reset reason enum to human readable text.
 static const char *resetReasonToString(esp_reset_reason_t reason) {
   switch (reason) {
     case ESP_RST_POWERON:   return "POWERON";
@@ -44,6 +48,7 @@ Msg rxHist[HIST_SIZE];
 int txIndex = 0;
 int rxIndex = 0;
 
+// Configure the Ethernet interface and serial link to the Modbus ESP32.
 void setup() {
   Serial.begin(115200);
   Serial2.begin(115200); // Link to Modbus ESP32
@@ -72,6 +77,8 @@ void setup() {
   server.begin();
 }
 
+// Main loop: forwards data between the Modbus ESP32 and the PC while
+// printing diagnostic timing information.
 void loop() {
   if (millis() - lastBeat > HEARTBEAT_INTERVAL) {
     Serial.println("DNP3 ESP32 heartbeat");

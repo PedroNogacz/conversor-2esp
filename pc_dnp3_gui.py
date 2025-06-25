@@ -1,3 +1,12 @@
+"""Simple Tkinter-based viewer for frames from the Modbus/DNP3 bridge.
+
+This script listens on TCP port 20000 in a background thread.  Each
+connection is read in full and the bytes are analyzed to determine if
+they contain a DNP3-wrapped Modbus command.  A short text summary is
+placed in a queue that the GUI periodically polls and displays in the
+window.
+"""
+
 import socket
 import threading
 import queue
@@ -11,12 +20,15 @@ MODBUS_CMDS = [
 ]
 
 def is_dnp3(data: bytes) -> bool:
+    """Return True if *data* appears to be a minimal DNP3 frame."""
     return len(data) >= 2 and data[0] == 0x05 and data[-1] == 0x16
 
 def bits_str(data: bytes) -> str:
+    """Convert a bytes object to a space separated string of bits."""
     return ' '.join(f'{b:08b}' for b in data)
 
 def server_thread(msg_queue: queue.Queue):
+    """Background thread that accepts connections and formats summaries."""
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     s.bind(('0.0.0.0', 20000))
     s.listen(1)
@@ -45,6 +57,7 @@ def server_thread(msg_queue: queue.Queue):
         msg_queue.put(msg)
 
 def main():
+    """Start the listening thread and run the Tkinter GUI."""
     q = queue.Queue()
     th = threading.Thread(target=server_thread, args=(q,), daemon=True)
     th.start()
@@ -55,6 +68,7 @@ def main():
     text.pack(fill=tk.BOTH, expand=True)
 
     def poll_queue():
+        """Update the text widget with any queued messages."""
         try:
             while True:
                 msg = q.get_nowait()

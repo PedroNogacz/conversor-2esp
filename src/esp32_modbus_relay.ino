@@ -1,10 +1,15 @@
 #include <SPI.h>
 #include <Ethernet.h>
 #include <esp_system.h>
+
+// ESP32 sketch that receives Modbus frames from the Arduino sender,
+// converts them into a rudimentary DNP3 format and passes them to the
+// second ESP32. Responses travel in the reverse direction.
 #ifndef LED_BUILTIN
 #define LED_BUILTIN 2
 #endif
 
+// Helper to translate the ESP reset reason code into text for logging.
 static const char *resetReasonToString(esp_reset_reason_t reason) {
   switch (reason) {
     case ESP_RST_POWERON:   return "POWERON";
@@ -45,6 +50,8 @@ int txIndex = 0;
 int rxIndex = 0;
 
 // Simple placeholder translation routines -----------------------------
+
+// Wrap a Modbus frame with dummy DNP3 start/end bytes.
 int modbusToDnp3(const byte *in, int len, byte *out, int outSize) {
   if (outSize < len + 2) return 0;
   out[0] = 0x05;                // pretend DNP3 start
@@ -53,6 +60,7 @@ int modbusToDnp3(const byte *in, int len, byte *out, int outSize) {
   return len + 2;
 }
 
+// Remove the fake DNP3 bytes and recover the original Modbus frame.
 int dnp3ToModbus(const byte *in, int len, byte *out, int outSize) {
   if (len < 2) return 0;        // too short
   int count = len - 2;
@@ -61,6 +69,7 @@ int dnp3ToModbus(const byte *in, int len, byte *out, int outSize) {
   return count;
 }
 
+// Initialize Ethernet, serial ports and heartbeat timer.
 void setup() {
   Serial.begin(115200);
   Serial2.begin(115200); // Link to DNP3 ESP32
@@ -89,6 +98,8 @@ void setup() {
   server.begin();
 }
 
+// Handle traffic between the Arduino sender and the DNP3 ESP32 while
+// producing diagnostic output.
 void loop() {
   if (millis() - lastBeat > HEARTBEAT_INTERVAL) {
     Serial.println("Modbus ESP32 heartbeat");
