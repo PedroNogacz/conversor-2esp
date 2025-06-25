@@ -123,7 +123,9 @@ void loop() {
         Serial.print(b, HEX);
         Serial.print(" ");
         mbBuf[mbLen++] = b;
+
         yield(); // avoid watchdog reset while printing
+
       } else {
         yield(); // yield to watchdog
       }
@@ -151,7 +153,9 @@ void loop() {
       if (dnpBuf[i] < 16) Serial.print("0");
       Serial.print(dnpBuf[i], HEX);
       Serial.print(" ");
+
       yield(); // feed watchdog during long prints
+
     }
     Serial.println();
     Serial.println(" -> sending to DNP3 ESP32");
@@ -182,7 +186,9 @@ void loop() {
       if (inBuf[i] < 16) Serial.print("0");
       Serial.print(inBuf[i], HEX);
       Serial.print(" ");
+
       yield(); // feed watchdog during prints
+
     }
     Serial.println();
 
@@ -198,7 +204,9 @@ void loop() {
       if (mbBuf[i] < 16) Serial.print("0");
       Serial.print(mbBuf[i], HEX);
       Serial.print(" ");
+
       yield(); // keep watchdog alive during print
+
     }
     Serial.println();
     Serial.println(" -> forwarding to sender");

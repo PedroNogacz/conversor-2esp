@@ -106,7 +106,10 @@ void loop() {
       if (buf[i] < 16) Serial.print("0");
       Serial.print(buf[i], HEX);
       Serial.print(" ");
+
       yield(); // feed watchdog during long prints
+
+
     }
     Serial.println(" -> sending to PC");
     Serial.print("Connecting to PC...");
@@ -143,7 +146,9 @@ void loop() {
         Serial.print(" ");
         buf[len++] = b;
         Serial2.write(b);
+
         yield(); // prevent watchdog during prints
+
       } else {
         yield(); // keep watchdog fed
       }
