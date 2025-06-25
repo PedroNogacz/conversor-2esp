@@ -77,7 +77,7 @@ void loop() {
       if (b < 16) Serial.print("0");
       Serial.print(b, HEX);
       Serial.print(" ");
-      delay(1); // yield while processing
+      yield(); // yield while processing
     }
     Serial.println();
     inc.stop();
@@ -118,5 +118,5 @@ void loop() {
     cmdIndex = (cmdIndex + 1) % NUM_CMDS;
     lastSend = millis();
   }
-  delay(1); // keep watchdog happy
+  yield(); // keep watchdog happy
 }

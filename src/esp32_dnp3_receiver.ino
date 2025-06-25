@@ -106,7 +106,7 @@ void loop() {
       if (buf[i] < 16) Serial.print("0");
       Serial.print(buf[i], HEX);
       Serial.print(" ");
-      delay(1); // feed watchdog during long prints
+      yield(); // feed watchdog during long prints
     }
     Serial.println(" -> sending to PC");
     Serial.print("Connecting to PC...");
@@ -143,9 +143,9 @@ void loop() {
         Serial.print(" ");
         buf[len++] = b;
         Serial2.write(b);
-        delay(1); // prevent watchdog during prints
+        yield(); // prevent watchdog during prints
       } else {
-        delay(1); // keep watchdog fed
+        yield(); // keep watchdog fed
       }
     }
     Serial.println();
@@ -162,5 +162,5 @@ void loop() {
     memcpy(rxHist[rxIndex].data, buf, len);
     rxIndex = (rxIndex + 1) % HIST_SIZE;
   }
-  delay(1); // yield to watchdog
+  yield(); // yield to watchdog
 }
