@@ -48,11 +48,13 @@ void setup() {
   delay(1000);
 }
 
+const unsigned long HEARTBEAT_INTERVAL = 5000; // blink and message every 5 s
+const unsigned long SEND_INTERVAL = 5000;    // transmit command every 5 s
 unsigned long lastSend = 0;
 unsigned long lastBeat = 0;
 
 void loop() {
-  if (millis() - lastBeat > 10000) {
+  if (millis() - lastBeat > HEARTBEAT_INTERVAL) {
     Serial.println("Sender heartbeat");
     digitalWrite(LED_BUILTIN, ledState);
     ledState = !ledState;
@@ -85,7 +87,7 @@ void loop() {
   lastBtn = btn;
 
   // Periodically send frame based on selected mode
-  if (millis() - lastSend > 5000) {
+  if (millis() - lastSend > SEND_INTERVAL) {
     const byte *frame = MODBUS_CMDS[cmdIndex];
     if (sendModbus) {
       if (client.connect(modbusIp, 502)) { // Modbus TCP port
