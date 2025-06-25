@@ -44,6 +44,8 @@ int ledState = LOW;
 static bool startEthernet()
 {
   Serial.println("Starting Ethernet");
+  SPI.begin(18, 19, 23, 5); // explicit SPI pins for W5500
+  Ethernet.init(5);          // chip select pin
   for (int attempt = 0; attempt < 3; attempt++) {
     Ethernet.begin(mac, ip);
     delay(100);
