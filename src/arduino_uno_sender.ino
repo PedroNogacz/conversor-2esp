@@ -2,11 +2,14 @@
 #include <Ethernet.h>
 #include <avr/wdt.h>
 
-// Arduino Uno sketch that periodically sends either Modbus or DNP3 commands
-// using a W5500-based Ethernet shield. A push button on pin 2 toggles the
-// destination between the Modbus and DNP3 ESP32 boards.  Two example frames
-// are cycled through for each protocol so the PC can identify which command
-// was transmitted.
+// Example sketch for an Arduino Uno equipped with a W5500 Ethernet shield.
+//
+// The sketch alternates between sending Modbus frames directly to the Modbus
+// ESP32 or wrapping the same bytes in a minimal DNP3 envelope and forwarding
+// them to the DNP3 ESP32.  A push button connected to pin 2 toggles which
+// destination is used.  Two example commands are transmitted in rotation so
+// the PC application can identify them.  Any responses from the Modbus ESP32
+// are printed to the serial monitor.
 
 // Replace with your network settings
 byte mac[] = { 0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED };
@@ -30,6 +33,8 @@ const byte MODBUS_CMDS[][8] = {
 const int NUM_CMDS = sizeof(MODBUS_CMDS) / sizeof(MODBUS_CMDS[0]);
 int cmdIndex = 0;
 
+// Initialize serial output and the Ethernet stack then start listening
+// for responses from the Modbus ESP32.
 void setup() {
   Serial.begin(115200);
   Serial.print("Reset cause: 0x");
@@ -53,6 +58,8 @@ const unsigned long SEND_INTERVAL = 5000;    // transmit command every 5 s
 unsigned long lastSend = 0;
 unsigned long lastBeat = 0;
 
+// Main control loop.  Handles heartbeats, reads the mode button and
+// periodically transmits the next command in the current protocol.
 void loop() {
   if (millis() - lastBeat > HEARTBEAT_INTERVAL) {
     Serial.println("Sender heartbeat");
