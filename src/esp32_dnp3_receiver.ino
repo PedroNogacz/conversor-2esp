@@ -184,10 +184,11 @@ void loop() {
       delay(1); // feed watchdog during long prints
     }
     Serial.println();
+    int cmdId = 0;
     if (isDnp3(buf, len)) {
-      int id = identifyCmd(buf + 1, len - 2);
+      cmdId = identifyCmd(buf + 1, len - 2);
       Serial.print("Valid DNP3 payload command ");
-      Serial.println(id ? id : 0);
+      Serial.println(cmdId ? cmdId : 0);
     } else {
       Serial.println("Invalid DNP3 frame");
     }
@@ -195,6 +196,9 @@ void loop() {
     Serial.print("Connecting to PC...");
     if (connectWithRetry(outClient, pcIp, 20000)) {
         Serial.println("connected");
+        Serial.print("Forwarding command ");
+        Serial.print(cmdId);
+        Serial.println(" to PC");
         Serial.print("Sending to PC, length: ");
         Serial.println(len);
         unsigned long txStart = micros();
@@ -236,16 +240,20 @@ void loop() {
     Serial.print("Forwarding to Modbus ESP32, length: ");
     Serial.println(len);
     Serial.println();
+    int cmdId2 = 0;
     if (isDnp3(buf, len)) {
-      int id = identifyCmd(buf + 1, len - 2);
+      cmdId2 = identifyCmd(buf + 1, len - 2);
       Serial.print("Valid DNP3 payload command ");
-      Serial.println(id ? id : 0);
+      Serial.println(cmdId2 ? cmdId2 : 0);
     } else {
       Serial.println("Invalid DNP3 frame");
     }
     inc.stop();
     Serial.print("Send to Modbus us: ");
     Serial.println(micros() - txStart);
+    Serial.print("Forwarded command ");
+    Serial.print(cmdId2);
+    Serial.println(" to Modbus ESP32");
 
     txHist[txIndex].len = len;
     memcpy(txHist[txIndex].data, buf, len);
