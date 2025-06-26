@@ -242,10 +242,11 @@ void loop() {
       delay(1); // feed watchdog during long prints
     }
     Serial.println();
+    int cmdId = 0;
     if (isDnp3(dnpBuf, outLen)) {
-      int id = identifyCmd(dnpBuf + 1, outLen - 2);
+      cmdId = identifyCmd(dnpBuf + 1, outLen - 2);
       Serial.print("Valid DNP3 payload command ");
-      Serial.println(id ? id : 0);
+      Serial.println(cmdId ? cmdId : 0);
     } else {
       Serial.println("Invalid DNP3 frame");
     }
@@ -256,6 +257,9 @@ void loop() {
     Serial2.write(dnpBuf, outLen);
     Serial.print("Send time us: ");
     Serial.println(micros() - txStart);
+    Serial.print("Forwarded command ");
+    Serial.print(cmdId);
+    Serial.println(" to DNP3 ESP32");
     // store history of transmitted messages
     txHist[txIndex].len = outLen;
     memcpy(txHist[txIndex].data, dnpBuf, outLen);
@@ -307,9 +311,9 @@ void loop() {
       delay(1); // keep watchdog alive during print
     }
     Serial.println();
-    int cmd2 = identifyCmd(mbBuf, outLen);
+    int cmdId2 = identifyCmd(mbBuf, outLen);
     Serial.print("Identified Modbus command ");
-    Serial.println(cmd2 ? cmd2 : 0);
+    Serial.println(cmdId2 ? cmdId2 : 0);
     Serial.println(" -> forwarding to sender");
     Serial.print("Connecting to sender...");
     if (connectWithRetry(outClient, senderIp, 1502)) {
@@ -319,6 +323,9 @@ void loop() {
         outClient.stop();
         Serial.print("Send time us: ");
         Serial.println(micros() - tx2Start);
+        Serial.print("Forwarded command ");
+        Serial.print(cmdId2);
+        Serial.println(" to sender");
       // store history of transmitted messages
       txHist[txIndex].len = outLen;
       memcpy(txHist[txIndex].data, mbBuf, outLen);
