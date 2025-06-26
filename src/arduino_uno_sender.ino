@@ -4,12 +4,13 @@
 
 // Example sketch for an Arduino Uno equipped with a W5500 Ethernet shield.
 //
-// The sketch alternates between sending Modbus frames directly to the Modbus
-// ESP32 or wrapping the same bytes in a minimal DNP3 envelope and forwarding
-// them to the DNP3 ESP32.  A push button connected to pin 2 toggles which
-// destination is used.  Two example commands are transmitted in rotation so
-// the PC application can identify them.  Any responses from the Modbus ESP32
-// are printed to the serial monitor.
+// The sketch sends Modbus commands to the Modbus ESP32 and then wraps the same
+// bytes in a minimal DNP3 envelope to send to the DNP3 ESP32.  Five commands are
+// transmitted using one protocol, then the next five using the other protocol
+// with a five second delay between each.  The loop repeats indefinitely and all
+// connection attempts are printed so the user can see whether each frame was
+// delivered.  Any responses from the Modbus ESP32 are printed to the serial
+// monitor.
 
 // Replace with your network settings
 byte mac[] = { 0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED };
@@ -21,14 +22,16 @@ EthernetServer server(1502); // For responses from Modbus ESP32
 
 EthernetClient client;
 int ledState = LOW;
-const int MODE_BTN = 2;
-bool sendModbus = true;
-bool lastBtn = HIGH;
+bool sendModbus = true;           // true -> sending Modbus, false -> sending DNP3
+int cycleCount = 0;               // how many frames have been sent in current mode
 
-// Example Modbus requests (function 3 and 4)
+// Five example Modbus requests used for both protocols
 const byte MODBUS_CMDS[][8] = {
-  { 0x01, 0x03, 0x00, 0x00, 0x00, 0x02, 0xC4, 0x0B },
-  { 0x01, 0x04, 0x00, 0x01, 0x00, 0x01, 0x31, 0xCA }
+  { 0x01, 0x03, 0x00, 0x00, 0x00, 0x02, 0xC4, 0x0B }, // read 2 holding regs @0
+  { 0x01, 0x04, 0x00, 0x01, 0x00, 0x01, 0x31, 0xCA }, // read 1 input reg  @1
+  { 0x01, 0x03, 0x00, 0x10, 0x00, 0x01, 0x85, 0xCF }, // read 1 holding reg @16
+  { 0x01, 0x04, 0x00, 0x20, 0x00, 0x01, 0x30, 0x00 }, // read 1 input reg  @32
+  { 0x01, 0x03, 0x00, 0x30, 0x00, 0x02, 0xC4, 0x04 }  // read 2 holding regs @48
 };
 const int NUM_CMDS = sizeof(MODBUS_CMDS) / sizeof(MODBUS_CMDS[0]);
 int cmdIndex = 0;
@@ -40,7 +43,6 @@ void setup() {
   Serial.print("Reset cause: 0x");
   Serial.println(MCUSR, HEX);
   pinMode(LED_BUILTIN, OUTPUT);
-  pinMode(MODE_BTN, INPUT_PULLUP);
   Ethernet.begin(mac, ip);
   if (Ethernet.localIP() != ip) {
     Serial.print("Sender warning: IP mismatch ");
@@ -58,8 +60,8 @@ const unsigned long SEND_INTERVAL = 5000;    // transmit command every 5 s
 unsigned long lastSend = 0;
 unsigned long lastBeat = 0;
 
-// Main control loop.  Handles heartbeats, reads the mode button and
-// periodically transmits the next command in the current protocol.
+// Main control loop.  Handles heartbeats and periodically transmits the next
+// command in the current protocol.
 void loop() {
   if (millis() - lastBeat > HEARTBEAT_INTERVAL) {
     Serial.println("Sender heartbeat");
@@ -83,30 +85,25 @@ void loop() {
     inc.stop();
   }
 
-  // Check mode button
-  bool btn = digitalRead(MODE_BTN);
-  if (btn == LOW && lastBtn == HIGH) {
-    sendModbus = !sendModbus;
-    Serial.print("Mode changed to: ");
-    Serial.println(sendModbus ? "Modbus" : "DNP3");
-    delay(200); // debounce
-  }
-  lastBtn = btn;
 
   // Periodically send frame based on selected mode
   if (millis() - lastSend > SEND_INTERVAL) {
     const byte *frame = MODBUS_CMDS[cmdIndex];
     if (sendModbus) {
+      Serial.print("Connecting for Modbus frame...");
       if (client.connect(modbusIp, 502)) { // Modbus TCP port
+        Serial.println("connected");
         client.write(frame, 8);
         Serial.print("Sender transmitted Modbus frame ");
         Serial.println(cmdIndex + 1);
         client.stop();
       } else {
-        Serial.println("Sender failed to connect for Modbus frame");
+        Serial.println("failed");
       }
     } else {
+      Serial.print("Connecting for DNP3 frame...");
       if (client.connect(dnpIp, 20000)) { // DNP3 port
+        Serial.println("connected");
         byte dnp[8 + 2];
         dnp[0] = 0x05;
         memcpy(dnp + 1, frame, 8);
@@ -116,10 +113,17 @@ void loop() {
         Serial.println(cmdIndex + 1);
         client.stop();
       } else {
-        Serial.println("Sender failed to connect for DNP3 frame");
+        Serial.println("failed");
       }
     }
     cmdIndex = (cmdIndex + 1) % NUM_CMDS;
+    cycleCount++;
+    if (cycleCount >= 5) {
+      cycleCount = 0;
+      sendModbus = !sendModbus;
+      Serial.print("Switching to ");
+      Serial.println(sendModbus ? "Modbus" : "DNP3");
+    }
     lastSend = millis();
   }
   delay(1); // keep watchdog happy

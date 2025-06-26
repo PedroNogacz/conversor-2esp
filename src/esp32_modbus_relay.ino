@@ -7,6 +7,18 @@
 // second ESP32. Responses travel in the reverse direction.
 // Additional debug prints log every connection attempt and when frames
 // are sent or received as requested for troubleshooting.
+//
+// Wiring summary for this board:
+//   W5500  -> ESP32 SPI pins
+//     MISO  - GPIO19
+//     MOSI  - GPIO23
+//     SCK   - GPIO18
+//     CS    - GPIO5
+//     RST   - GPIO16 (see W5500_RST)
+//   Serial link to second ESP32
+//     TX2 (GPIO17) -> second ESP32 RX (GPIO3)
+//     RX2 (GPIO16) -> second ESP32 TX (GPIO1)
+//   The built-in LED on GPIO2 blinks every 5 seconds as a heartbeat.
 #ifndef LED_BUILTIN
 #define LED_BUILTIN 2
 #endif
