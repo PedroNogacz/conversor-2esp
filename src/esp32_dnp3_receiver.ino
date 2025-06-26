@@ -6,6 +6,18 @@
 // routes any PC responses back to the Modbus ESP32 over a serial link.
 // Includes extra debug prints so every connection attempt as well as
 // each send and receive operation is logged for analysis.
+//
+// Wiring summary for this board:
+//   W5500  -> ESP32 SPI pins
+//     MISO  - GPIO19
+//     MOSI  - GPIO23
+//     SCK   - GPIO18
+//     CS    - GPIO5
+//     RST   - GPIO16 (see W5500_RST)
+//   Serial link to Modbus ESP32
+//     RX2 (GPIO16) <- Modbus ESP32 TX2 (GPIO17)
+//     TX2 (GPIO17) -> Modbus ESP32 RX2 (GPIO16)
+//   The built-in LED on GPIO2 blinks every 5 seconds as a heartbeat.
 #ifndef LED_BUILTIN
 #define LED_BUILTIN 2
 #endif
