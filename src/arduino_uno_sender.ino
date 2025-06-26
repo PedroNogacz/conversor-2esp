@@ -102,6 +102,8 @@ void loop() {
         Serial.print("Sender transmitted Modbus frame ");
         Serial.println(cmdIndex + 1);
         client.stop();
+      } else {
+        Serial.println("Sender failed to connect for Modbus frame");
       }
     } else {
       if (client.connect(dnpIp, 20000)) { // DNP3 port
@@ -113,6 +115,8 @@ void loop() {
         Serial.print("Sender transmitted DNP3 frame ");
         Serial.println(cmdIndex + 1);
         client.stop();
+      } else {
+        Serial.println("Sender failed to connect for DNP3 frame");
       }
     }
     cmdIndex = (cmdIndex + 1) % NUM_CMDS;
