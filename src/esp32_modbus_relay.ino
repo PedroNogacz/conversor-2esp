@@ -5,6 +5,8 @@
 // ESP32 sketch that receives Modbus frames from the Arduino sender,
 // converts them into a rudimentary DNP3 format and passes them to the
 // second ESP32. Responses travel in the reverse direction.
+// Additional debug prints log every connection attempt and when frames
+// are sent or received as requested for troubleshooting.
 #ifndef LED_BUILTIN
 #define LED_BUILTIN 2
 #endif
@@ -236,6 +238,8 @@ void loop() {
       Serial.println("Invalid DNP3 frame");
     }
     Serial.println(" -> sending to DNP3 ESP32");
+    Serial.print("Sending to DNP3 ESP32, length: ");
+    Serial.println(outLen);
     unsigned long txStart = micros();
     Serial2.write(dnpBuf, outLen);
     Serial.print("Send time us: ");
@@ -254,6 +258,8 @@ void loop() {
       inBuf[len++] = Serial2.read();
       yield();
     }
+    Serial.print("Received from DNP3 ESP32, length: ");
+    Serial.println(len);
     rxHist[rxIndex].len = len;
     memcpy(rxHist[rxIndex].data, inBuf, len);
     rxIndex = (rxIndex + 1) % HIST_SIZE;

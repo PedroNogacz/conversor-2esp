@@ -4,6 +4,8 @@
 
 // ESP32 sketch that forwards Modbus data to a PC as DNP3 frames and
 // routes any PC responses back to the Modbus ESP32 over a serial link.
+// Includes extra debug prints so every connection attempt as well as
+// each send and receive operation is logged for analysis.
 #ifndef LED_BUILTIN
 #define LED_BUILTIN 2
 #endif
@@ -154,6 +156,8 @@ void loop() {
       buf[len++] = Serial2.read();
       yield();
     }
+    Serial.print("Received from Modbus ESP32, length: ");
+    Serial.println(len);
     unsigned long rxEnd = micros();
     Serial.print("Time to receive us: ");
     Serial.println(rxEnd - rxStart);
@@ -179,6 +183,8 @@ void loop() {
     Serial.print("Connecting to PC...");
     if (connectWithRetry(outClient, pcIp, 20000)) {
         Serial.println("connected");
+        Serial.print("Sending to PC, length: ");
+        Serial.println(len);
         unsigned long txStart = micros();
         outClient.write(buf, len);
         outClient.stop();
@@ -215,6 +221,8 @@ void loop() {
         delay(1); // keep watchdog fed
       }
     }
+    Serial.print("Forwarding to Modbus ESP32, length: ");
+    Serial.println(len);
     Serial.println();
     if (isDnp3(buf, len)) {
       int id = identifyCmd(buf + 1, len - 2);
