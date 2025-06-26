@@ -125,3 +125,18 @@ An alternate script, `pc_dnp3_gui.py`, provides a basic graphical interface for
 the same listener. It opens a Tkinter window that displays each connection's
 source IP address, the arrival time, the bytes and bits received, the detected
 protocol, and which example command was matched.
+
+### Network setup for Windows and TP-Link modem
+
+1. Connect the Arduino, both ESP32 boards and the PC to the four LAN ports of the TP-Link modem using Ethernet cables.
+2. Power on the modem and each device. Make sure the link LEDs on the modem show a connection on each port.
+3. Log in to the modem configuration page (usually http://192.168.1.1). If DHCP is enabled, reserve the following addresses or configure each device manually:
+   - `192.168.1.50` for the Arduino Uno sender.
+   - `192.168.1.60` for the Modbus ESP32 converter.
+   - `192.168.1.70` for the DNP3 ESP32 converter.
+   - `192.168.1.80` for the Windows PC.
+4. Make sure the modem allows traffic on TCP port 20000. If a firewall is active, create a rule to permit this port so the Python listener can accept connections.
+5. On Windows open the network adapter settings and assign the static IP `192.168.1.80` with subnet mask `255.255.255.0` and the modem as the default gateway.
+6. Install Python 3 on the PC if it is not already present. Open a command prompt in this repository and run `python pc_dnp3_listener.py` (or `python pc_dnp3_gui.py` for the GUI) to start listening for frames.
+
+With these addresses in place the converter boards will reach the PC and the Python scripts will display the traffic.

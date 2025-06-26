@@ -1,10 +1,10 @@
 """Simple Tkinter-based viewer for frames from the Modbus/DNP3 bridge.
 
-This script listens on TCP port 20000 in a background thread.  Each
-connection is read in full and the bytes are analyzed to determine if
-they contain a DNP3-wrapped Modbus command.  A short text summary is
-placed in a queue that the GUI periodically polls and displays in the
-window.
+The GUI uses a background thread to listen on TCP port 20000.  When a
+converter connects and sends data, the script analyses the bytes to see
+if they match the small DNP3 wrapper used in this repository.  A short
+summary is queued for display in the Tkinter window so the interface
+remains responsive.
 """
 
 import socket
@@ -19,8 +19,13 @@ MODBUS_CMDS = [
     bytes([0x01,0x04,0x00,0x01,0x00,0x01,0x31,0xCA])
 ]
 
+# The converter sends one of the example Modbus frames above.  The GUI
+# compares incoming data against them so it can label which command was
+# received.
+
 def is_dnp3(data: bytes) -> bool:
     """Return True if *data* appears to be a minimal DNP3 frame."""
+    # Check for the start and end bytes of the simple DNP3 envelope.
     return len(data) >= 2 and data[0] == 0x05 and data[-1] == 0x16
 
 def bits_str(data: bytes) -> str:
@@ -29,11 +34,14 @@ def bits_str(data: bytes) -> str:
 
 def server_thread(msg_queue: queue.Queue):
     """Background thread that accepts connections and formats summaries."""
+    # Runs forever accepting a connection from the converter, reading all
+    # bytes sent and pushing a formatted summary onto the queue for the
+    # GUI to display.
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     s.bind(('0.0.0.0', 20000))
     s.listen(1)
     while True:
-        conn, addr = s.accept()
+        conn, addr = s.accept()  # wait for a connection from the ESP32
         buf = b''
         while True:
             chunk = conn.recv(1024)
@@ -41,8 +49,11 @@ def server_thread(msg_queue: queue.Queue):
                 break
             buf += chunk
         conn.close()
+        # Identify whether the bytes contain the simple DNP3 frame
         proto = 'DNP3' if is_dnp3(buf) else 'Unknown'
         payload = buf[1:-1] if proto == 'DNP3' else buf
+        # Check which example command we received so it can be shown in
+        # the GUI.
         match = 'unknown'
         for i, cmd in enumerate(MODBUS_CMDS, 1):
             if payload == cmd:
@@ -58,6 +69,7 @@ def server_thread(msg_queue: queue.Queue):
 
 def main():
     """Start the listening thread and run the Tkinter GUI."""
+    # Queue used for passing messages from the network thread to the GUI.
     q = queue.Queue()
     th = threading.Thread(target=server_thread, args=(q,), daemon=True)
     th.start()
@@ -69,6 +81,8 @@ def main():
 
     def poll_queue():
         """Update the text widget with any queued messages."""
+        # Retrieve all pending messages from the queue without blocking
+        # and append them to the text area.
         try:
             while True:
                 msg = q.get_nowait()
@@ -76,6 +90,7 @@ def main():
                 text.see(tk.END)
         except queue.Empty:
             pass
+        # Check again after a short delay
         root.after(100, poll_queue)
 
     root.after(100, poll_queue)
