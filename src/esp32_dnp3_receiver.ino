@@ -37,6 +37,26 @@ const unsigned long HEARTBEAT_INTERVAL = 5000; // 5 second LED blink
 unsigned long lastBeat = 0;
 int ledState = LOW;
 
+// Expected Modbus request patterns, shared with the Modbus ESP32.
+const byte MODBUS_CMDS[][8] = {
+  { 0x01, 0x03, 0x00, 0x00, 0x00, 0x02, 0xC4, 0x0B },
+  { 0x01, 0x04, 0x00, 0x01, 0x00, 0x01, 0x31, 0xCA }
+};
+const int NUM_CMDS = sizeof(MODBUS_CMDS) / sizeof(MODBUS_CMDS[0]);
+
+static int identifyCmd(const byte *buf, int len) {
+  for (int i = 0; i < NUM_CMDS; i++) {
+    if (len == 8 && memcmp(buf, MODBUS_CMDS[i], 8) == 0) {
+      return i + 1;
+    }
+  }
+  return 0;
+}
+
+static bool isDnp3(const byte *buf, int len) {
+  return len >= 2 && buf[0] == 0x05 && buf[len - 1] == 0x16;
+}
+
 // Buffers to keep history of sent/received messages
 #define HIST_SIZE 5
 struct Msg {
@@ -147,6 +167,14 @@ void loop() {
       Serial.print(" ");
       delay(1); // feed watchdog during long prints
     }
+    Serial.println();
+    if (isDnp3(buf, len)) {
+      int id = identifyCmd(buf + 1, len - 2);
+      Serial.print("Valid DNP3 payload command ");
+      Serial.println(id ? id : 0);
+    } else {
+      Serial.println("Invalid DNP3 frame");
+    }
     Serial.println(" -> sending to PC");
     Serial.print("Connecting to PC...");
     if (connectWithRetry(outClient, pcIp, 20000)) {
@@ -188,6 +216,13 @@ void loop() {
       }
     }
     Serial.println();
+    if (isDnp3(buf, len)) {
+      int id = identifyCmd(buf + 1, len - 2);
+      Serial.print("Valid DNP3 payload command ");
+      Serial.println(id ? id : 0);
+    } else {
+      Serial.println("Invalid DNP3 frame");
+    }
     inc.stop();
     Serial.print("Send to Modbus us: ");
     Serial.println(micros() - txStart);
