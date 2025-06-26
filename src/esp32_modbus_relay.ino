@@ -38,6 +38,31 @@ const unsigned long HEARTBEAT_INTERVAL = 5000; // 5 second LED blink
 unsigned long lastBeat = 0;
 int ledState = LOW;
 
+// Example Modbus commands we expect. Command 1 reads two holding
+// registers starting at address 0. Command 2 reads a single input
+// register at address 1.
+const byte MODBUS_CMDS[][8] = {
+  { 0x01, 0x03, 0x00, 0x00, 0x00, 0x02, 0xC4, 0x0B },
+  { 0x01, 0x04, 0x00, 0x01, 0x00, 0x01, 0x31, 0xCA }
+};
+const int NUM_CMDS = sizeof(MODBUS_CMDS) / sizeof(MODBUS_CMDS[0]);
+
+// Return the command index (1-based) if *buf* matches one of the example
+// Modbus requests. Returns 0 when no match is found.
+static int identifyCmd(const byte *buf, int len) {
+  for (int i = 0; i < NUM_CMDS; i++) {
+    if (len == 8 && memcmp(buf, MODBUS_CMDS[i], 8) == 0) {
+      return i + 1;
+    }
+  }
+  return 0;
+}
+
+// Check for the minimal DNP3 framing used in these examples.
+static bool isDnp3(const byte *buf, int len) {
+  return len >= 2 && buf[0] == 0x05 && buf[len - 1] == 0x16;
+}
+
 // Attempt to start the Ethernet interface with a few retries. This guards
 // against the W5500 not responding on the first try which can otherwise hang
 // the sketch inside Ethernet.begin().
@@ -174,6 +199,13 @@ void loop() {
     Serial.print("Time to receive us: ");
     Serial.println(rxEnd - rxStart);
     Serial.println();
+    int cmd = identifyCmd(mbBuf, mbLen);
+    if (cmd) {
+      Serial.print("Identified Modbus command ");
+      Serial.println(cmd);
+    } else {
+      Serial.println("Unknown Modbus command");
+    }
     client.stop();
 
     // store received message history
@@ -196,6 +228,13 @@ void loop() {
       delay(1); // feed watchdog during long prints
     }
     Serial.println();
+    if (isDnp3(dnpBuf, outLen)) {
+      int id = identifyCmd(dnpBuf + 1, outLen - 2);
+      Serial.print("Valid DNP3 payload command ");
+      Serial.println(id ? id : 0);
+    } else {
+      Serial.println("Invalid DNP3 frame");
+    }
     Serial.println(" -> sending to DNP3 ESP32");
     unsigned long txStart = micros();
     Serial2.write(dnpBuf, outLen);
@@ -227,6 +266,13 @@ void loop() {
       delay(1); // feed watchdog during prints
     }
     Serial.println();
+    if (isDnp3(inBuf, len)) {
+      int id = identifyCmd(inBuf + 1, len - 2);
+      Serial.print("DNP3 frame with command ");
+      Serial.println(id ? id : 0);
+    } else {
+      Serial.println("Invalid DNP3 frame");
+    }
 
     byte mbBuf[260];
     unsigned long trans2Start = micros();
@@ -243,6 +289,9 @@ void loop() {
       delay(1); // keep watchdog alive during print
     }
     Serial.println();
+    int cmd2 = identifyCmd(mbBuf, outLen);
+    Serial.print("Identified Modbus command ");
+    Serial.println(cmd2 ? cmd2 : 0);
     Serial.println(" -> forwarding to sender");
     Serial.print("Connecting to sender...");
     if (connectWithRetry(outClient, senderIp, 1502)) {

@@ -83,6 +83,11 @@ wrapped in a minimal DNP3 header and sent to the DNP3 ESP32 every five seconds.
 Two example requests are issued in rotation: a **Read Holding Registers** and a
 **Read Input Registers** command.
 
+Both ESP32 sketches now verify these messages. When either board receives a
+frame it prints which example command was recognised or notes that the bytes do
+not match the expected format. This helps confirm the converter link is working
+and that Modbus frames are preserved inside the DNP3 wrapper.
+
 ### Translation overview
 
 The Modbus ESP32 includes simple routines that wrap Modbus frames inside a
