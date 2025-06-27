@@ -18,7 +18,8 @@ IPAddress ip(192, 168, 1, 50); // Sender address
 IPAddress modbusIp(192, 168, 1, 60); // Modbus ESP32 address
 IPAddress dnpIp(192, 168, 1, 70);    // DNP3 ESP32 address
 
-EthernetServer server(1502); // For responses from Modbus ESP32
+EthernetServer server(1502);        // For responses from Modbus ESP32
+EthernetServer dnpServer(20000);    // Show any frames from DNP3 ESP32
 
 EthernetClient client;
 int ledState = LOW;
@@ -56,6 +57,7 @@ void setup() {
   Serial.print("Sender IP: ");
   Serial.println(Ethernet.localIP());
   server.begin();
+  dnpServer.begin();
   delay(1000);
 }
 
@@ -87,6 +89,22 @@ void loop() {
     }
     Serial.println();
     inc.stop();
+  }
+
+  // Check for response from DNP3 ESP32
+  EthernetClient incDnp = dnpServer.available();
+  if (incDnp) {
+    Serial.println("Sender received DNP3 response:");
+    while (incDnp.available()) {
+      byte b = incDnp.read();
+      Serial.print("0x");
+      if (b < 16) Serial.print("0");
+      Serial.print(b, HEX);
+      Serial.print(" ");
+      delay(1);
+    }
+    Serial.println();
+    incDnp.stop();
   }
 
 

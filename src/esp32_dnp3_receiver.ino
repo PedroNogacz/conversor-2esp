@@ -196,6 +196,7 @@ void loop() {
     Serial.print("Forwarding command ");
     Serial.print(cmdId);
     Serial.println(" to PC");
+    Serial.println("DNP3 ESP32 notifying: attempting to connect to PC");
     Serial.print("Connecting to PC...");
     if (connectWithRetry(outClient, pcIp, 20000)) {
         Serial.println("connected");
