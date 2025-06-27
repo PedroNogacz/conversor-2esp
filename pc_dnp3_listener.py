@@ -53,6 +53,8 @@ def main():
             if not chunk:
                 break
             buf += chunk
+        # acknowledge receipt
+        conn.sendall(b'ACK')
         conn.close()
         print('Received bytes:', buf.hex(' '))
         print_bits(buf)

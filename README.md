@@ -80,8 +80,9 @@ The Arduino sketch reads a push button on digital pin&nbsp;2 to choose which
 protocol it sends. In the unpressed state the Uno transmits Modbus frames to the
 Modbus ESP32. Pressing the button toggles to DNP3 mode and the same frames are
 wrapped in a minimal DNP3 header and sent to the DNP3 ESP32 every five seconds.
-Two example requests are issued in rotation: a **Read Holding Registers** and a
-**Read Input Registers** command.
+Only two of the sample commands are used by default (one holding-register read
+and one input-register read) but the sketch can be edited to choose any pair
+from the list in `MODBUS_CMDS`.
 
 Both ESP32 sketches now verify these messages. When either board receives a
 frame it prints which example command was recognised or notes that the bytes do
@@ -95,6 +96,11 @@ DNP3-style header before sending them to the second ESP32. Data received in this
 format is unwrapped back to Modbus before being forwarded to the sender. These
 examples are placeholders—replace them with real protocol handlers for a
 production system.
+
+For troubleshooting purposes every converter now replies with a short
+``ACK`` message when it successfully receives a frame. The Arduino sender
+prints these acknowledgements on its serial console so you can confirm
+each command made the round trip.
 
 ### Handling watchdog resets
 

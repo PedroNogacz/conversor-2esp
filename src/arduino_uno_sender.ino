@@ -34,7 +34,11 @@ const byte MODBUS_CMDS[][8] = {
   { 0x01, 0x03, 0x00, 0x30, 0x00, 0x02, 0xC4, 0x04 }  // read 2 holding regs @48
 };
 const int NUM_CMDS = sizeof(MODBUS_CMDS) / sizeof(MODBUS_CMDS[0]);
-int cmdIndex = 0;
+// Only the first two commands are used in this example. Change the
+// ACTIVE_CMDS array to choose different ones.
+const int ACTIVE_CMDS = 2;
+int chosenCmds[ACTIVE_CMDS] = {0, 1};
+int chosenIndex = 0;
 
 // Initialize serial output and the Ethernet stack then start listening
 // for responses from the Modbus ESP32.
@@ -88,14 +92,14 @@ void loop() {
 
   // Periodically send frame based on selected mode
   if (millis() - lastSend > SEND_INTERVAL) {
-    const byte *frame = MODBUS_CMDS[cmdIndex];
+    const byte *frame = MODBUS_CMDS[chosenCmds[chosenIndex]];
     if (sendModbus) {
       Serial.print("Connecting for Modbus frame...");
       if (client.connect(modbusIp, 502)) { // Modbus TCP port
         Serial.println("connected");
         client.write(frame, 8);
         Serial.print("Sender transmitted Modbus frame ");
-        Serial.println(cmdIndex + 1);
+        Serial.println(chosenCmds[chosenIndex] + 1);
         client.stop();
       } else {
         Serial.println("failed");
@@ -110,13 +114,13 @@ void loop() {
         dnp[9] = 0x16;
         client.write(dnp, sizeof(dnp));
         Serial.print("Sender transmitted DNP3 frame ");
-        Serial.println(cmdIndex + 1);
+        Serial.println(chosenCmds[chosenIndex] + 1);
         client.stop();
       } else {
         Serial.println("failed");
       }
     }
-    cmdIndex = (cmdIndex + 1) % NUM_CMDS;
+    chosenIndex = (chosenIndex + 1) % ACTIVE_CMDS;
     cycleCount++;
     if (cycleCount >= 5) {
       cycleCount = 0;

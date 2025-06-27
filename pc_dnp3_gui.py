@@ -48,6 +48,7 @@ def server_thread(msg_queue: queue.Queue):
             if not chunk:
                 break
             buf += chunk
+        conn.sendall(b'ACK')
         conn.close()
         # Identify whether the bytes contain the simple DNP3 frame
         proto = 'DNP3' if is_dnp3(buf) else 'Unknown'
