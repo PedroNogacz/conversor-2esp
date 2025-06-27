@@ -193,12 +193,12 @@ void loop() {
       Serial.println("Invalid DNP3 frame");
     }
     Serial.println(" -> sending to PC");
+    Serial.print("Forwarding command ");
+    Serial.print(cmdId);
+    Serial.println(" to PC");
     Serial.print("Connecting to PC...");
     if (connectWithRetry(outClient, pcIp, 20000)) {
         Serial.println("connected");
-        Serial.print("Forwarding command ");
-        Serial.print(cmdId);
-        Serial.println(" to PC");
         Serial.print("Sending to PC, length: ");
         Serial.println(len);
         unsigned long txStart = micros();
