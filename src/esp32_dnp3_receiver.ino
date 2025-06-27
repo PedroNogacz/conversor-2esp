@@ -14,9 +14,9 @@
 //     SCK   - GPIO18
 //     CS    - GPIO5
 //     RST   - GPIO16 (see W5500_RST)
-//   Serial link to Modbus ESP32
-//     RX2 (GPIO16) <- Modbus ESP32 TX2 (GPIO17)
-//     TX2 (GPIO17) -> Modbus ESP32 RX2 (GPIO16)
+//   Serial link to Modbus ESP32 using UART0
+//     RX  (GPIO3)  <- Modbus ESP32 TX (GPIO1)
+//     TX  (GPIO1)  -> Modbus ESP32 RX (GPIO3)
 //   The built-in LED on GPIO2 blinks every 5 seconds as a heartbeat.
 #ifndef LED_BUILTIN
 #define LED_BUILTIN 2
@@ -85,7 +85,7 @@ int rxIndex = 0;
 // Attempt to bring up the Ethernet interface while keeping the watchdog fed.
 static bool startEthernet()
 {
-  Serial.println("Starting Ethernet");
+  Serial2.println("Starting Ethernet");
   SPI.begin(18, 19, 23, 5); // explicit SPI pins for W5500
   Ethernet.init(5);          // chip select pin
   for (int attempt = 0; attempt < 3; attempt++) {
@@ -93,10 +93,10 @@ static bool startEthernet()
     delay(100);
     if (Ethernet.hardwareStatus() != EthernetNoHardware &&
         Ethernet.localIP() == ip) {
-      Serial.println("Ethernet ready");
+      Serial2.println("Ethernet ready");
       return true;
     }
-    Serial.println("Ethernet failed, resetting W5500...");
+    Serial2.println("Ethernet failed, resetting W5500...");
     digitalWrite(W5500_RST, LOW);
     delay(50);
     digitalWrite(W5500_RST, HIGH);
@@ -115,7 +115,7 @@ static bool connectWithRetry(EthernetClient &cli, IPAddress addr, uint16_t port)
     if (cli.connect(addr, port)) {
       return true;
     }
-    Serial.println("connect failed, retrying");
+    Serial2.println("connect failed, retrying");
     for (int i = 0; i < 20; i++) {
       delay(10);
       yield();
@@ -126,14 +126,14 @@ static bool connectWithRetry(EthernetClient &cli, IPAddress addr, uint16_t port)
 
 // Configure the Ethernet interface and serial link to the Modbus ESP32.
 void setup() {
-  Serial.begin(115200);
-  Serial2.begin(115200); // Link to Modbus ESP32
+  Serial2.begin(115200);
+  Serial.begin(115200); // Link to Modbus ESP32
   esp_reset_reason_t reason = esp_reset_reason();
-  Serial.print("Reset reason: ");
-  Serial.print(resetReasonToString(reason));
-  Serial.print(" (");
-  Serial.print((int)reason);
-  Serial.println(")");
+  Serial2.print("Reset reason: ");
+  Serial2.print(resetReasonToString(reason));
+  Serial2.print(" (");
+  Serial2.print((int)reason);
+  Serial2.println(")");
   pinMode(W5500_RST, OUTPUT);
   digitalWrite(W5500_RST, LOW);
   delay(50);
@@ -141,12 +141,12 @@ void setup() {
   delay(50);
   pinMode(LED_BUILTIN, OUTPUT);
   if (!startEthernet()) {
-    Serial.println("DNP3 ESP32 error: unable to start Ethernet");
+    Serial2.println("DNP3 ESP32 error: unable to start Ethernet");
     delay(2000);
     ESP.restart();
   }
-  Serial.print("DNP3 ESP32 IP: ");
-  Serial.println(Ethernet.localIP());
+  Serial2.print("DNP3 ESP32 IP: ");
+  Serial2.println(Ethernet.localIP());
   server.begin();
 }
 
@@ -154,87 +154,87 @@ void setup() {
 // printing diagnostic timing information.
 void loop() {
   if (millis() - lastBeat > HEARTBEAT_INTERVAL) {
-    Serial.println("DNP3 ESP32 heartbeat");
+    Serial2.println("DNP3 ESP32 heartbeat");
     digitalWrite(LED_BUILTIN, ledState);
     ledState = !ledState;
     lastBeat = millis();
   }
   // From Modbus ESP32 to PC
-  if (Serial2.available()) {
+  if (Serial.available()) {
     unsigned long rxStart = micros();
     byte buf[256];
     int len = 0;
-    while (Serial2.available() && len < (int)sizeof(buf)) {
-      buf[len++] = Serial2.read();
+    while (Serial.available() && len < (int)sizeof(buf)) {
+      buf[len++] = Serial.read();
       yield();
     }
-    Serial.print("Received from Modbus ESP32, length: ");
-    Serial.println(len);
+    Serial2.print("Received from Modbus ESP32, length: ");
+    Serial2.println(len);
     unsigned long rxEnd = micros();
-    Serial.print("Time to receive us: ");
-    Serial.println(rxEnd - rxStart);
+    Serial2.print("Time to receive us: ");
+    Serial2.println(rxEnd - rxStart);
     memcpy(rxHist[rxIndex].data, buf, len);
     rxIndex = (rxIndex + 1) % HIST_SIZE;
-    Serial.print("DNP3 ESP32 received from Modbus: ");
+    Serial2.print("DNP3 ESP32 received from Modbus: ");
     for (int i = 0; i < len; i++) {
-      Serial.print("0x");
-      if (buf[i] < 16) Serial.print("0");
-      Serial.print(buf[i], HEX);
-      Serial.print(" ");
+      Serial2.print("0x");
+      if (buf[i] < 16) Serial2.print("0");
+      Serial2.print(buf[i], HEX);
+      Serial2.print(" ");
       delay(1); // feed watchdog during long prints
     }
-    Serial.println();
+    Serial2.println();
     int cmdId = 0;
     if (isDnp3(buf, len)) {
       cmdId = identifyCmd(buf + 1, len - 2);
-      Serial.print("Valid DNP3 payload command ");
-      Serial.println(cmdId ? cmdId : 0);
+      Serial2.print("Valid DNP3 payload command ");
+      Serial2.println(cmdId ? cmdId : 0);
     } else {
-      Serial.println("Invalid DNP3 frame");
+      Serial2.println("Invalid DNP3 frame");
     }
-    Serial.println(" -> sending to PC");
-    Serial.print("Forwarding command ");
-    Serial.print(cmdId);
-    Serial.println(" to PC");
-    Serial.println("DNP3 ESP32 notifying: attempting to connect to PC");
-    Serial.print("Connecting to PC...");
+    Serial2.println(" -> sending to PC");
+    Serial2.print("Forwarding command ");
+    Serial2.print(cmdId);
+    Serial2.println(" to PC");
+    Serial2.println("DNP3 ESP32 notifying: attempting to connect to PC");
+    Serial2.print("Connecting to PC...");
     if (connectWithRetry(outClient, pcIp, 20000)) {
-        Serial.println("connected");
-        Serial.print("Sending to PC, length: ");
-        Serial.println(len);
+        Serial2.println("connected");
+        Serial2.print("Sending to PC, length: ");
+        Serial2.println(len);
         unsigned long txStart = micros();
         outClient.write(buf, len);
         outClient.write((const uint8_t*)"ACK", 3);
         outClient.stop();
-        Serial.print("Send time us: ");
-        Serial.println(micros() - txStart);
+        Serial2.print("Send time us: ");
+        Serial2.println(micros() - txStart);
         txHist[txIndex].len = len;
         memcpy(txHist[txIndex].data, buf, len);
         txIndex = (txIndex + 1) % HIST_SIZE;
-        Serial.println("Message sent to PC");
-        Serial2.write((const uint8_t*)"ACK", 3);
+        Serial2.println("Message sent to PC");
+        Serial.write((const uint8_t*)"ACK", 3);
     } else {
-      Serial.println("failed to connect");
+      Serial2.println("failed to connect");
     }
   }
 
   // From PC to Modbus ESP32
   EthernetClient inc = server.available();
   if (inc) {
-    Serial.println("Connection from PC accepted");
+    Serial2.println("Connection from PC accepted");
       unsigned long txStart = micros();
-    Serial.println("DNP3 ESP32 received from PC:");
+    Serial2.println("DNP3 ESP32 received from PC:");
     byte buf[256];
     int len = 0;
     while (inc.connected() && len < sizeof(buf)) {
       if (inc.available()) {
         byte b = inc.read();
-        Serial.print("0x");
-        if (b < 16) Serial.print("0");
-        Serial.print(b, HEX);
-        Serial.print(" ");
+        Serial2.print("0x");
+        if (b < 16) Serial2.print("0");
+        Serial2.print(b, HEX);
+        Serial2.print(" ");
         buf[len++] = b;
-        Serial2.write(b);
+        Serial.write(b);
         delay(1); // prevent watchdog during prints
       } else {
         delay(1); // keep watchdog fed
@@ -242,28 +242,28 @@ void loop() {
     }
     // Let the PC know we received the frame
     inc.write((const uint8_t*)"ACK", 3);
-    Serial.print("Forwarding to Modbus ESP32, length: ");
-    Serial.println(len);
-    Serial.println();
+    Serial2.print("Forwarding to Modbus ESP32, length: ");
+    Serial2.println(len);
+    Serial2.println();
     int cmdId2 = 0;
     if (isDnp3(buf, len)) {
       cmdId2 = identifyCmd(buf + 1, len - 2);
-      Serial.print("Valid DNP3 payload command ");
-      Serial.println(cmdId2 ? cmdId2 : 0);
+      Serial2.print("Valid DNP3 payload command ");
+      Serial2.println(cmdId2 ? cmdId2 : 0);
     } else {
-      Serial.println("Invalid DNP3 frame");
+      Serial2.println("Invalid DNP3 frame");
     }
     inc.stop();
-    Serial.print("Send to Modbus us: ");
-    Serial.println(micros() - txStart);
-    Serial.print("Forwarded command ");
-    Serial.print(cmdId2);
-    Serial.println(" to Modbus ESP32");
+    Serial2.print("Send to Modbus us: ");
+    Serial2.println(micros() - txStart);
+    Serial2.print("Forwarded command ");
+    Serial2.print(cmdId2);
+    Serial2.println(" to Modbus ESP32");
 
     txHist[txIndex].len = len;
     memcpy(txHist[txIndex].data, buf, len);
     txIndex = (txIndex + 1) % HIST_SIZE;
-    Serial.println("Message forwarded to Modbus ESP32");
+    Serial2.println("Message forwarded to Modbus ESP32");
 
     rxHist[rxIndex].len = len;
     memcpy(rxHist[rxIndex].data, buf, len);

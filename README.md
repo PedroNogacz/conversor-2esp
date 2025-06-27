@@ -20,7 +20,7 @@ This repository documents the wiring and connection strategy for a Modbus-to-DNP
 ### Wiring steps
 
 1. **Connect each W5500 Ethernet module to the TP-Link modem** using standard Ethernet cables, matching the port assignments above.
-2. **Link the ESP32 and second ESP32 boards** with a direct UART connection. Connect TX2 (GPIO17) on the Modbus ESP32 to RX (GPIO3) on the second ESP32 and connect TX (GPIO1) on the second ESP32 back to RX2 (GPIO16) on the ESP32. This serial link carries the translated command from the ESP32 to the second ESP32.
+2. **Link the ESP32 and second ESP32 boards** with a direct UART connection. Connect TX (GPIO1) on the Modbus ESP32 to RX (GPIO3) on the second ESP32 and connect TX (GPIO1) on the second ESP32 back to RX (GPIO3) on the ESP32. This serial link carries the translated command from the ESP32 to the second ESP32.
 3. **Power each ESP device** according to its requirements (typically 3.3&nbsp;V regulated power). Ensure grounds are common if using UART between the ESP32 and second ESP32.
 4. **From the second ESP32, connect to the PC** via Ethernet over the TP-Link modem. The PC will receive DNP3 messages.
 5. **Wire a mode button to the Arduino Uno**. Connect one side of a push button to digital pin 2 and the other side to GND. The sketch uses the internal pull-up resistor so the default state selects Modbus mode.
@@ -46,7 +46,7 @@ Power each W5500 module from 3.3&nbsp;V and connect grounds to the ESP32 and sec
 
 Connect the **RST** terminal so the ESP32 or second ESP32 can reset the W5500 during setup. The example sketches pulse GPIO16 on each board low for a short period at startup before bringing it high.
 #### Dedicated connections
-Each W5500 terminal connects to only one microcontroller pin. Avoid wiring the same W5500 signal to more than one GPIO. The serial link is also one-to-one: connect TX2 on each ESP32 solely to the other board's RX2.
+Each W5500 terminal connects to only one microcontroller pin. Avoid wiring the same W5500 signal to more than one GPIO. The serial link is also one-to-one: connect TX on each ESP32 solely to the other board's RX.
 
 
 ### Component summary per board
@@ -54,25 +54,24 @@ Each W5500 terminal connects to only one microcontroller pin. Avoid wiring the s
 | Device             | Components               | Connections                                        |
 |--------------------|--------------------------|----------------------------------------------------|
 | **Arduino Uno Sender** | Arduino Uno, W5500 shield | Ethernet to port 1 |
-| **Modbus ESP32**   | ESP32 board, W5500       | Ethernet to port 2, UART TX2/RX2 to second ESP32 |
+| **Modbus ESP32**   | ESP32 board, W5500       | Ethernet to port 2, UART TX/RX to second ESP32 |
 | **second ESP32**        | ESP32 board, W5500     | Ethernet to port 3, UART TX/RX to Modbus ESP32 |
 | **PC**             | PC running DNP3 master   | Ethernet to port 4                                 |
 
 The ESP32 and second ESP32 communicate through a direct 3.3&nbsp;V TTL serial link.
-Connect TX2 (GPIO17) on the Modbus board to RX (GPIO3) on the second ESP32 and
-TX (GPIO1) on the second ESP32 back to RX2 (GPIO16) on the ESP32. Both sides operate at
+Connect TX (GPIO1) on each ESP32 to the other board's RX (GPIO3). Both sides operate at
 115200&nbsp;baud using the default 8N1 format.
 
 ### Serial pin reference
 
-The ESP32-WROOM-32 exposes UART2 as **TX2** (GPIO17) and **RX2** (GPIO16). The second ESP32 uses **TX** (GPIO1) and **RX** (GPIO3). Wire these terminals together between the boards as shown below:
+Both ESP32 boards use UART0 for the converter link. This exposes **TX** (GPIO1) and **RX** (GPIO3) on each board. Wire these terminals together between the boards as shown below:
 
 | Board            | Pin label | GPIO | Connection to |
 |------------------|-----------|------|---------------|
-| Modbus ESP32     | TX2       | 17   | second ESP32 RX (GPIO3) |
-| Modbus ESP32     | RX2       | 16   | second ESP32 TX (GPIO1) |
-| second ESP32          | TX        | 1    | Modbus ESP32 RX2 |
-| second ESP32          | RX        | 3    | Modbus ESP32 TX2 |
+| Modbus ESP32     | TX        | 1    | second ESP32 RX (GPIO3) |
+| Modbus ESP32     | RX        | 3    | second ESP32 TX (GPIO1) |
+| second ESP32          | TX        | 1    | Modbus ESP32 RX (GPIO3) |
+| second ESP32          | RX        | 3    | Modbus ESP32 TX (GPIO1) |
 
 ### Mode selection button
 
