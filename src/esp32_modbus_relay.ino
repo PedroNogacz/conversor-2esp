@@ -220,6 +220,8 @@ void loop() {
     } else {
       Serial.println("Unknown Modbus command");
     }
+    // Respond to the sender so the Arduino knows the frame was handled.
+    client.write((const uint8_t*)"ACK", 3);
     client.stop();
 
     // store received message history
@@ -258,6 +260,7 @@ void loop() {
     Serial.println(outLen);
     unsigned long txStart = micros();
     Serial2.write(dnpBuf, outLen);
+    Serial2.write((const uint8_t*)"ACK", 3);
     Serial.print("Send time us: ");
     Serial.println(micros() - txStart);
     // store history of transmitted messages
@@ -323,6 +326,8 @@ void loop() {
       Serial.println("connected");
         unsigned long tx2Start = micros();
         outClient.write(mbBuf, outLen);
+        // let the sender know we handled the request
+        outClient.write((const uint8_t*)"ACK", 3);
         outClient.stop();
         Serial.print("Send time us: ");
         Serial.println(micros() - tx2Start);
@@ -331,6 +336,7 @@ void loop() {
       memcpy(txHist[txIndex].data, mbBuf, outLen);
       txIndex = (txIndex + 1) % HIST_SIZE;
       Serial.println("Message forwarded");
+      Serial2.write((const uint8_t*)"ACK", 3);
     } else {
       Serial.println("failed to connect");
     }

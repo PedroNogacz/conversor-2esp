@@ -11,3 +11,4 @@ Escrever Coil (0x05)           | Req: 01 05 00 0A FF 00 CRC  | Resp: igual ao re
 Escrever Registro (0x06)       | Req: 01 06 00 02 00 0C CRC  | Resp: igual ao request    | Req: FC=WRITE Obj:Grp40/Var2/Idx0002       | Resp: Ack + flags
 Escrever Múltiplos Coils (0x0F)| Req: 01 0F 00 13 00 0A XX CRC | Resp: 01 0F 00 13 00 0A CRC | Req: FC=WRITE Obj:Grp12/Var2 Range+BitMap | Resp: Ack + flags
 Escrever Múltiplos Regs (0x10) | Req: 01 10 00 01 00 02 04 00 0A 01 02 CRC | Resp: 01 10 00 01 00 02 CRC | Req: FC=WRITE Obj:Grp40/Var2 ValBlock   | Resp: Ack + flags
+\nTodas as conversões enviam uma resposta simples "ACK" para confirmar o recebimento do comando.

@@ -203,6 +203,7 @@ void loop() {
         Serial.println(len);
         unsigned long txStart = micros();
         outClient.write(buf, len);
+        outClient.write((const uint8_t*)"ACK", 3);
         outClient.stop();
         Serial.print("Send time us: ");
         Serial.println(micros() - txStart);
@@ -210,6 +211,7 @@ void loop() {
         memcpy(txHist[txIndex].data, buf, len);
         txIndex = (txIndex + 1) % HIST_SIZE;
         Serial.println("Message sent to PC");
+        Serial2.write((const uint8_t*)"ACK", 3);
     } else {
       Serial.println("failed to connect");
     }
@@ -237,6 +239,8 @@ void loop() {
         delay(1); // keep watchdog fed
       }
     }
+    // Let the PC know we received the frame
+    inc.write((const uint8_t*)"ACK", 3);
     Serial.print("Forwarding to Modbus ESP32, length: ");
     Serial.println(len);
     Serial.println();

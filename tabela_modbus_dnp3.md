@@ -10,3 +10,5 @@
 | Escrever Registro (0x06)      | Req: `01 06 00 02 00 0C CRC`<br>Resp: Igual ao request         | Req: Grp=40 Var=2 Idx=0002<br>Resp: Ack + flags                  |
 | Escrever Múltiplos Coils (0x0F)| Req: `01 0F 00 13 00 0A XX CRC`<br>Resp: `01 0F 00 13 00 0A CRC`| Req: Grp=12 Var=2 Range+BitMap<br>Resp: Ack + flags              |
 | Escrever Múltiplos Regs (0x10)| Req: `01 10 00 01 00 02 04 00 0A 01 02 CRC`<br>Resp: `01 10 00 01 00 02 CRC` | Req: Grp=40 Var=2 ValueBlock<br>Resp: Ack + flags        |
+
+Todas as conversões retornam um simples **ACK** confirmando o recebimento do comando.
