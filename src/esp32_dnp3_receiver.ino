@@ -1,7 +1,6 @@
 #include <SPI.h>
 #include <Ethernet.h>
 #include <esp_system.h>
-#include <time.h>
 #include <stdio.h>
 
 // ESP32 sketch that forwards Modbus data to a PC as DNP3 frames and
@@ -104,29 +103,18 @@ Msg rxHist[HIST_SIZE];
 int txIndex = 0;
 int rxIndex = 0;
 
-// Format millis() into HH:MM:SS for consistent logging
-// Format the current time into HH:MM:SS. Falls back to millis when NTP has not
-// updated yet.
-static bool printedStart = false;
+// Format millis() into HH:MM:SS for consistent logging. Each board
+// prints timestamps based solely on its own uptime.
 static void printTimestamp() {
-  if (printedStart) return;
-  time_t now = time(nullptr);
+  unsigned long secs = millis() / 1000;
+  unsigned long h = (secs / 3600) % 24;
+  unsigned long m = (secs / 60) % 60;
+  unsigned long s = secs % 60;
   char ts[12];
-  if (now > 0) {
-    struct tm tm;
-    localtime_r(&now, &tm);
-    snprintf(ts, sizeof(ts), "%02d:%02d:%02d", tm.tm_hour, tm.tm_min, tm.tm_sec);
-  } else {
-    unsigned long secs = millis() / 1000;
-    unsigned long h = (secs / 3600) % 24;
-    unsigned long m = (secs / 60) % 60;
-    unsigned long s = secs % 60;
-    snprintf(ts, sizeof(ts), "%02lu:%02lu:%02lu", h, m, s);
-  }
+  snprintf(ts, sizeof(ts), "%02lu:%02lu:%02lu", h, m, s);
   Serial.print("[");
   Serial.print(ts);
   Serial.print("] ");
-  printedStart = true;
 }
 
 // Attempt to bring up the Ethernet interface while keeping the watchdog fed.
@@ -194,7 +182,6 @@ void setup() {
   }
   Serial.print("DNP3 ESP32 IP: ");
   Serial.println(Ethernet.localIP());
-  configTime(0, 0, "pool.ntp.org");
   server.begin();
   printTimestamp();
   Serial.println("DNP3 ESP32 started");

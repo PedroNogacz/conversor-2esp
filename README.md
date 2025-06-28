@@ -87,7 +87,9 @@ Check the W5500 wiring and power.
 The Arduino sketch reads a push button on digital pin&nbsp;2 to choose which
 protocol it sends. In the unpressed state the Uno transmits Modbus frames to the
 Modbus ESP32. Pressing the button toggles to DNP3 mode and the same frames are
- wrapped in a minimal DNP3 header and sent to the DNP3 ESP32 every ten seconds.
+wrapped in a minimal DNP3 header and sent to the DNP3 ESP32 every ten seconds.
+After startup the sender waits ten seconds before transmitting its first command
+so the network can stabilise.
 Only two of the sample commands are used by default (one holding-register read
 and one input-register read) but the sketch can be edited to choose any pair
 from the list in `MODBUS_CMDS`.
@@ -118,10 +120,10 @@ only the converter currently handling the command replies. The Arduino
 sender still prints any acknowledgements it receives to help confirm
 that the command completed.
 
-All three sketches now synchronise their clocks using NTP during setup so the
-timestamps printed on each board line up. When a message is sent the sender
-prints the exact bytes before transmission and it reports ``ACK`` when the
-converter confirms receipt. This makes comparing logs across devices easier.
+Each sketch prints a timestamp based on its own uptime whenever a message is
+logged. When a command is sent the sender prints the exact bytes before
+transmission and reports ``ACK`` when the converter confirms receipt. This makes
+comparing logs across devices easier without relying on network time.
 
 ### Handling watchdog resets
 
