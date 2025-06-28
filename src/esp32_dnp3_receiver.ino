@@ -14,16 +14,28 @@
 //     SCK   - GPIO18
 //     CS    - GPIO5
 //     RST   - GPIO16 (see W5500_RST)
-//   Serial link to Modbus ESP32 using UART1
+//   Serial link to Modbus ESP32 using UART1 by default
 //     RX  (GPIO21) <- Modbus ESP32 TX (GPIO22)
 //     TX  (GPIO22) -> Modbus ESP32 RX (GPIO21)
+//   Adjust LINK_PORT/LINK_TX/LINK_RX below to use different pins or UARTs
 //   The built-in LED on GPIO2 blinks every 5 seconds as a heartbeat.
 #ifndef LED_BUILTIN
 #define LED_BUILTIN 2
 #endif
 
-const int LINK_TX = 22; // UART1 TX pin to Modbus ESP32
-const int LINK_RX = 21; // UART1 RX pin from Modbus ESP32
+// Select which serial port carries the converter link. To revert to UART0
+// change LINK_PORT to Serial and set LINK_TX/LINK_RX as needed.
+#ifndef LINK_PORT
+#define LINK_PORT Serial1
+#endif
+
+#ifndef LINK_TX
+#define LINK_TX 22
+#endif
+
+#ifndef LINK_RX
+#define LINK_RX 21
+#endif
 
 // Helper that converts the ESP reset reason enum to human readable text.
 static const char *resetReasonToString(esp_reset_reason_t reason) {
@@ -130,7 +142,7 @@ static bool connectWithRetry(EthernetClient &cli, IPAddress addr, uint16_t port)
 // Configure the Ethernet interface and serial link to the Modbus ESP32.
 void setup() {
   Serial2.begin(115200);
-  Serial1.begin(115200, SERIAL_8N1, LINK_RX, LINK_TX); // Link to Modbus ESP32
+  LINK_PORT.begin(115200, SERIAL_8N1, LINK_RX, LINK_TX); // Link to Modbus ESP32
   esp_reset_reason_t reason = esp_reset_reason();
   Serial2.print("Reset reason: ");
   Serial2.print(resetReasonToString(reason));
@@ -163,12 +175,12 @@ void loop() {
     lastBeat = millis();
   }
   // From Modbus ESP32 to PC
-  if (Serial1.available()) {
+  if (LINK_PORT.available()) {
     unsigned long rxStart = micros();
     byte buf[256];
     int len = 0;
-    while (Serial1.available() && len < (int)sizeof(buf)) {
-      buf[len++] = Serial1.read();
+    while (LINK_PORT.available() && len < (int)sizeof(buf)) {
+      buf[len++] = LINK_PORT.read();
       yield();
     }
     Serial2.print("Received from Modbus ESP32, length: ");
@@ -215,7 +227,7 @@ void loop() {
         memcpy(txHist[txIndex].data, buf, len);
         txIndex = (txIndex + 1) % HIST_SIZE;
         Serial2.println("Message sent to PC");
-        Serial1.write((const uint8_t*)"ACK", 3);
+        LINK_PORT.write((const uint8_t*)"ACK", 3);
     } else {
       Serial2.println("failed to connect");
     }
@@ -237,7 +249,7 @@ void loop() {
         Serial2.print(b, HEX);
         Serial2.print(" ");
         buf[len++] = b;
-        Serial1.write(b);
+        LINK_PORT.write(b);
         delay(1); // prevent watchdog during prints
       } else {
         delay(1); // keep watchdog fed

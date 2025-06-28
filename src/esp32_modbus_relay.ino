@@ -15,16 +15,28 @@
 //     SCK   - GPIO18
 //     CS    - GPIO5
 //     RST   - GPIO16 (see W5500_RST)
-//   Serial link to second ESP32 using UART1
+//   Serial link to second ESP32 using UART1 by default
 //     TX  (GPIO22) -> second ESP32 RX (GPIO21)
 //     RX  (GPIO21) <- second ESP32 TX (GPIO22)
+//   Edit LINK_PORT/LINK_TX/LINK_RX below to use other pins or UARTs
 //   The built-in LED on GPIO2 blinks every 5 seconds as a heartbeat.
 #ifndef LED_BUILTIN
 #define LED_BUILTIN 2
 #endif
 
-const int LINK_TX = 22; // UART1 TX pin to DNP3 ESP32
-const int LINK_RX = 21; // UART1 RX pin from DNP3 ESP32
+// Serial port used for the converter link. Set to Serial to use UART0 or
+// Serial2 for UART2. Pins can be overridden with LINK_TX/LINK_RX.
+#ifndef LINK_PORT
+#define LINK_PORT Serial1
+#endif
+
+#ifndef LINK_TX
+#define LINK_TX 22
+#endif
+
+#ifndef LINK_RX
+#define LINK_RX 21
+#endif
 
 // Helper to translate the ESP reset reason code into text for logging.
 static const char *resetReasonToString(esp_reset_reason_t reason) {
@@ -159,7 +171,7 @@ int dnp3ToModbus(const byte *in, int len, byte *out, int outSize) {
 // Initialize Ethernet, serial ports and heartbeat timer.
 void setup() {
   Serial2.begin(115200);
-  Serial1.begin(115200, SERIAL_8N1, LINK_RX, LINK_TX); // Link to DNP3 ESP32
+  LINK_PORT.begin(115200, SERIAL_8N1, LINK_RX, LINK_TX); // Link to DNP3 ESP32
   esp_reset_reason_t reason = esp_reset_reason();
   Serial2.print("Reset reason: ");
   Serial2.print(resetReasonToString(reason));
@@ -262,8 +274,8 @@ void loop() {
     Serial2.print("Sending to DNP3 ESP32, length: ");
     Serial2.println(outLen);
     unsigned long txStart = micros();
-    Serial1.write(dnpBuf, outLen);
-    Serial1.write((const uint8_t*)"ACK", 3);
+    LINK_PORT.write(dnpBuf, outLen);
+    LINK_PORT.write((const uint8_t*)"ACK", 3);
     Serial2.print("Send time us: ");
     Serial2.println(micros() - txStart);
     // store history of transmitted messages
@@ -273,11 +285,11 @@ void loop() {
   }
 
   // Data from DNP3 ESP32 back to sender
-  if (Serial1.available()) {
+  if (LINK_PORT.available()) {
     byte inBuf[256];
     int len = 0;
-    while (Serial1.available() && len < (int)sizeof(inBuf)) {
-      inBuf[len++] = Serial1.read();
+    while (LINK_PORT.available() && len < (int)sizeof(inBuf)) {
+      inBuf[len++] = LINK_PORT.read();
       yield();
     }
     Serial2.print("Received from DNP3 ESP32, length: ");
@@ -339,7 +351,7 @@ void loop() {
       memcpy(txHist[txIndex].data, mbBuf, outLen);
       txIndex = (txIndex + 1) % HIST_SIZE;
       Serial2.println("Message forwarded");
-      Serial1.write((const uint8_t*)"ACK", 3);
+      LINK_PORT.write((const uint8_t*)"ACK", 3);
     } else {
       Serial2.println("failed to connect");
     }
