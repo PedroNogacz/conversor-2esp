@@ -270,9 +270,7 @@ void loop() {
     cmdCounter++;
     lastCmdId = cmdCounter;
     lastCmdFc = mbBuf[1];
-    Serial.print("Command ");
-    Serial.print(lastCmdId);
-    Serial.print(" C");
+    Serial.print("C");
     Serial.print(lastCmdId);
     Serial.print(": ");
     Serial.print(cmdDescription(mbBuf[1]));
@@ -311,9 +309,7 @@ void loop() {
     if (isDnp3(dnpBuf, outLen)) {
       cmdId = identifyCmd(dnpBuf + 1, outLen - 2);
     }
-    Serial.print("Forwarding command ");
-    Serial.print(lastCmdId);
-    Serial.print(" C");
+    Serial.print("Forwarding C");
     Serial.print(lastCmdId);
     Serial.print(": ");
     Serial.print(cmdDescription(mbBuf[1]));
@@ -328,7 +324,6 @@ void loop() {
     Serial.println(outLen);
     unsigned long txStart = micros();
     Serial1.write(dnpBuf, outLen);
-    Serial1.write((const uint8_t*)"ACK", 3);
     Serial.print("Send time us: ");
     Serial.println(micros() - txStart);
     // store history of transmitted messages
@@ -344,9 +339,6 @@ void loop() {
     while (Serial1.available() && len < (int)sizeof(inBuf)) {
       inBuf[len++] = Serial1.read();
       yield();
-    }
-    if (len >= 3 && inBuf[len-3]=='A' && inBuf[len-2]=='C' && inBuf[len-1]=='K') {
-      len -= 3;
     }
     Serial.print("Received from DNP3 ESP32, length: ");
     Serial.println(len);
@@ -366,9 +358,7 @@ void loop() {
     if (isDnp3(inBuf, len)) {
       id = identifyCmd(inBuf + 1, len - 2);
     }
-    Serial.print("Response to command ");
-    Serial.print(lastCmdId);
-    Serial.print(" R");
+    Serial.print("R");
     Serial.print(lastCmdId);
     Serial.print(": ");
     Serial.print(cmdDescription(inBuf[1]));
@@ -424,7 +414,6 @@ void loop() {
       Serial.print("Response R");
       Serial.print(lastCmdId);
       Serial.println(" forwarded");
-      Serial1.write((const uint8_t*)"ACK", 3);
     } else {
       Serial.println("failed to connect");
     }

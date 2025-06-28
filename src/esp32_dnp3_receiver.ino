@@ -246,9 +246,7 @@ void loop() {
     cmdCounter++;
     lastCmdId = cmdCounter;
     lastCmdFc = buf[1];
-    Serial.print("Command ");
-    Serial.print(lastCmdId);
-    Serial.print(" C");
+    Serial.print("C");
     Serial.print(lastCmdId);
     Serial.print(": forwarding ");
     Serial.print(cmdDescription(buf[1]));
@@ -275,10 +273,9 @@ void loop() {
         txHist[txIndex].len = len;
         memcpy(txHist[txIndex].data, buf, len);
         txIndex = (txIndex + 1) % HIST_SIZE;
-        Serial.print("Command ");
+        Serial.print("C");
         Serial.print(lastCmdId);
         Serial.println(" sent to PC");
-        Serial1.write((const uint8_t*)"ACK", 3);
     } else {
       Serial.println("failed to connect");
     }
@@ -318,9 +315,7 @@ void loop() {
     if (isDnp3(buf, len)) {
       cmdId2 = identifyCmd(buf + 1, len - 2);
     }
-    Serial.print("Response to command ");
-    Serial.print(lastCmdId);
-    Serial.print(" R");
+    Serial.print("R");
     Serial.print(lastCmdId);
     Serial.print(": ");
     Serial.print(cmdDescription(buf[1]));

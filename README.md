@@ -99,9 +99,9 @@ and that Modbus frames are preserved inside the DNP3 wrapper.
 
 Each board logs the command name based on the table in
 `tabela_modbus_dnp3.md` so the meaning of every request is shown.  Commands are
-numbered sequentially – the sender prints ``Command 1`` and each converter
+numbered sequentially – the sender prints ``C1`` and each converter
 prints the same number when forwarding.  The matching reply is labelled
-``Response R1`` and so on. Only the startup time of the sender and both
+``R1`` and so on. Only the startup time of the sender and both
 converters is printed; later messages omit timestamps.
 
 ### Translation overview
@@ -112,10 +112,11 @@ format is unwrapped back to Modbus before being forwarded to the sender. These
 examples are placeholders—replace them with real protocol handlers for a
 production system.
 
-For troubleshooting purposes every converter now replies with a short
-``ACK`` message when it successfully receives a frame. The Arduino sender
-prints these acknowledgements on its serial console so you can confirm
-each command made the round trip.
+Earlier versions exchanged a short ``ACK`` between the two ESP32 boards
+after forwarding a frame. This internal handshake has been removed so
+only the converter currently handling the command replies. The Arduino
+sender still prints any acknowledgements it receives to help confirm
+that the command completed.
 
 All three sketches now synchronise their clocks using NTP during setup so the
 timestamps printed on each board line up. When a message is sent the sender

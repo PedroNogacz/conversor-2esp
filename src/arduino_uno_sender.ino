@@ -184,9 +184,7 @@ void loop() {
     }
     Serial.println();
     if (len == 3 && buf[0] == 'A' && buf[1] == 'C' && buf[2] == 'K') {
-      Serial.print("Response to command ");
-      Serial.print(lastCmdId);
-      Serial.print(" R");
+      Serial.print("R");
       Serial.print(lastCmdId);
       Serial.print(": ACK for ");
       Serial.println(cmdDescription(lastSentFc));
@@ -212,9 +210,7 @@ void loop() {
     }
     Serial.println();
     if (len == 3 && buf[0] == 'A' && buf[1] == 'C' && buf[2] == 'K') {
-      Serial.print("Response to command ");
-      Serial.print(lastCmdId);
-      Serial.print(" R");
+      Serial.print("R");
       Serial.print(lastCmdId);
       Serial.print(": ACK for ");
       Serial.println(cmdDescription(lastSentFc));
@@ -229,9 +225,7 @@ void loop() {
     uint8_t fc = frame[1];
     cmdCounter++;
     lastCmdId = cmdCounter;
-    Serial.print("Command ");
-    Serial.print(lastCmdId);
-    Serial.print(" C");
+    Serial.print("C");
     Serial.print(lastCmdId);
     Serial.print(": ");
     Serial.println(cmdDescription(fc));
