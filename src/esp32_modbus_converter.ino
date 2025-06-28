@@ -3,6 +3,18 @@
 #include <esp_system.h>
 #include <stdio.h>
 
+/*
+Step-by-step usage:
+1. Wire the W5500 module and the UART link to the second ESP32 using
+   the pins listed below.
+2. Open this sketch in the Arduino IDE and choose the correct ESP32
+   board type.
+3. Upload, then open the Serial Monitor at 115200 baud to watch the log.
+4. Connect the Arduino sender and PC to the same network.
+5. The sketch relays Modbus frames to the second ESP32 and forwards the
+   replies back to the PC.
+*/
+
 // ESP32 sketch that receives Modbus frames from the Arduino sender,
 // converts them into a rudimentary DNP3 format and passes them to the
 // second ESP32. When DNP3 frames arrive from that board they are
@@ -193,20 +205,25 @@ int dnp3ToModbus(const byte *in, int len, byte *out, int outSize) {
 
 // Initialize Ethernet, serial ports and heartbeat timer.
 void setup() {
+  // Step 1: start serial output.
   Serial.begin(115200);
-  Serial1.begin(115200, SERIAL_8N1, LINK_RX, LINK_TX); // Link to DNP3 ESP32
+  // Step 2: open the UART link to the second ESP32.
+  Serial1.begin(115200, SERIAL_8N1, LINK_RX, LINK_TX);
+  // Step 3: show the last reset reason.
   esp_reset_reason_t reason = esp_reset_reason();
   Serial.print("Reset reason: ");
   Serial.print(resetReasonToString(reason));
   Serial.print(" (");
   Serial.print((int)reason);
   Serial.println(")");
+  // Step 4: reset and enable the W5500 module.
   pinMode(W5500_RST, OUTPUT);
   digitalWrite(W5500_RST, LOW);
   delay(50);
   digitalWrite(W5500_RST, HIGH);
   delay(50);
   pinMode(LED_BUILTIN, OUTPUT);
+  // Step 5: bring up Ethernet and reboot on failure.
   if (!startEthernet()) {
     Serial.println("Modbus ESP32 error: unable to start Ethernet");
     delay(2000);
@@ -214,6 +231,7 @@ void setup() {
   }
   Serial.print("Modbus ESP32 IP: ");
   Serial.println(Ethernet.localIP());
+  // Step 6: listen for incoming Modbus TCP commands.
   server.begin();
   printTimestamp();
   Serial.println("Modbus ESP32 started");
@@ -222,6 +240,7 @@ void setup() {
 // Handle traffic between the Arduino sender and the DNP3 ESP32 while
 // producing diagnostic output.
 void loop() {
+  // Step 1: heartbeat message every few seconds.
   if (millis() - lastBeat > HEARTBEAT_INTERVAL) {
     printTimestamp();
     Serial.println("Modbus ESP32 heartbeat");
@@ -229,7 +248,7 @@ void loop() {
     ledState = !ledState;
     lastBeat = millis();
   }
-  // Data from Arduino Uno to DNP3 ESP32
+  // Step 2: handle Modbus TCP from the Arduino sender.
   EthernetClient client = server.available();
   if (client) {
       printTimestamp();
@@ -324,7 +343,7 @@ void loop() {
     txIndex = (txIndex + 1) % HIST_SIZE;
   }
 
-  // Data from DNP3 ESP32 that should be forwarded to the PC
+  // Step 3: relay responses from the DNP3 ESP32 to the PC.
   if (Serial1.available()) {
     byte inBuf[256];
     int len = 0;
@@ -410,5 +429,6 @@ void loop() {
       Serial.println("failed to connect");
     }
   }
+  // Step 4: small delay so the watchdog remains satisfied.
   delay(1); // yield to keep watchdog happy
 }

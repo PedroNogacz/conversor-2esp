@@ -3,6 +3,16 @@
 #include <avr/wdt.h>
 #include <stdio.h>
 
+/*
+Step-by-step usage:
+1. Connect the W5500 Ethernet shield to the Arduino Uno.
+2. Wire the network so the ESP32 converters and PC share the same LAN.
+3. Open this sketch in the Arduino IDE and select the Uno board.
+4. Upload the sketch and open the Serial Monitor at 115200 baud.
+5. The sketch alternates between sending Modbus and DNP3 commands every
+   five cycles, printing each step to the console.
+*/
+
 // Example sketch for an Arduino Uno equipped with a W5500 Ethernet shield.
 //
 // The sketch sends Modbus commands to the Modbus ESP32 and then wraps the same
@@ -82,10 +92,12 @@ static void printTimestamp() {
 // Initialize serial output and the Ethernet stack then start listening
 // for responses from the Modbus ESP32.
 void setup() {
+  // Step 1: start the serial console for debug messages.
   Serial.begin(115200);
   Serial.print("Reset cause: 0x");
   Serial.println(MCUSR, HEX);
   pinMode(LED_BUILTIN, OUTPUT);
+  // Step 2: configure the W5500 Ethernet shield.
   Ethernet.begin(mac, ip);
   if (Ethernet.localIP() != ip) {
     Serial.print("Sender warning: IP mismatch ");
@@ -94,13 +106,14 @@ void setup() {
   }
   Serial.print("Sender IP: ");
   Serial.println(Ethernet.localIP());
+  // Step 3: start servers that receive responses from both converters.
   server.begin();
   dnpServer.begin();
   delay(1000);
   printTimestamp();
   Serial.println("Sender started");
-  // Give network components time to settle before the first command
-  delay(10000);
+  // Step 4: wait before sending the first command.
+  delay(10000); // give network components time to settle
 }
 
 const unsigned long HEARTBEAT_INTERVAL = 5000; // blink and message every 5 s
@@ -111,6 +124,7 @@ unsigned long lastBeat = 0;
 // Main control loop.  Handles heartbeats and periodically transmits the next
 // command in the current protocol.
 void loop() {
+  // Step 1: heartbeat and LED blink.
   if (millis() - lastBeat > HEARTBEAT_INTERVAL) {
     printTimestamp();
     Serial.println("Sender heartbeat");
@@ -118,7 +132,7 @@ void loop() {
     ledState = !ledState;
     lastBeat = millis();
   }
-  // Check for response from Modbus ESP32
+  // Step 2: check for responses from the Modbus ESP32.
   EthernetClient inc = server.available();
   if (inc) {
     if (sendModbus) {
@@ -146,7 +160,7 @@ void loop() {
     inc.stop();
   }
 
-  // Check for response from DNP3 ESP32
+  // Step 3: check for responses from the DNP3 ESP32.
   EthernetClient incDnp = dnpServer.available();
   if (incDnp) {
     if (!sendModbus) {
@@ -175,7 +189,7 @@ void loop() {
   }
 
 
-  // Periodically send frame based on selected mode
+  // Step 4: periodically send the next command in the chosen protocol.
   if (millis() - lastSend > sendInterval) {
     const byte *frame = MODBUS_CMDS[chosenCmds[chosenIndex]];
     uint8_t fc = frame[1];
@@ -279,5 +293,6 @@ void loop() {
     }
     lastSend = millis();
   }
+  // Step 5: short delay so the watchdog timer is serviced.
   delay(1); // keep watchdog happy
 }
