@@ -1,6 +1,7 @@
 #include <SPI.h>
 #include <Ethernet.h>
 #include <esp_system.h>
+#include <stdio.h>
 
 // ESP32 sketch that receives Modbus frames from the Arduino sender,
 // converts them into a rudimentary DNP3 format and passes them to the
@@ -136,6 +137,24 @@ Msg rxHist[HIST_SIZE];
 int txIndex = 0;
 int rxIndex = 0;
 
+// Format millis() into HH:MM:SS for logging
+static void formatTime(unsigned long ms, char *out, size_t outSize) {
+  unsigned long secs = ms / 1000;
+  unsigned long h = (secs / 3600) % 24;
+  unsigned long m = (secs / 60) % 60;
+  unsigned long s = secs % 60;
+  snprintf(out, outSize, "%02lu:%02lu:%02lu", h, m, s);
+}
+
+// Print the timestamp prefix used for log lines
+static void printTimestamp() {
+  char ts[12];
+  formatTime(millis(), ts, sizeof(ts));
+  Serial.print("[");
+  Serial.print(ts);
+  Serial.print("] ");
+}
+
 // Simple placeholder translation routines -----------------------------
 
 // Wrap a Modbus frame with dummy DNP3 start/end bytes.
@@ -186,6 +205,7 @@ void setup() {
 // producing diagnostic output.
 void loop() {
   if (millis() - lastBeat > HEARTBEAT_INTERVAL) {
+    printTimestamp();
     Serial.println("Modbus ESP32 heartbeat");
     digitalWrite(LED_BUILTIN, ledState);
     ledState = !ledState;
@@ -194,10 +214,12 @@ void loop() {
   // Data from Arduino Uno to DNP3 ESP32
   EthernetClient client = server.available();
   if (client) {
+    printTimestamp();
     Serial.println("Connection from sender accepted");
     unsigned long rxStart = micros();
     byte mbBuf[256];
     int mbLen = 0;
+    printTimestamp();
     Serial.println("Modbus ESP32 received from sender:");
     while (client.connected() && mbLen < sizeof(mbBuf)) {
       if (client.available()) {
@@ -255,6 +277,7 @@ void loop() {
     } else {
       Serial.println("Invalid DNP3 frame");
     }
+    printTimestamp();
     Serial.println(" -> sending to DNP3 ESP32");
     Serial.print("Forwarding command ");
     Serial.print(cmdId);
@@ -320,10 +343,12 @@ void loop() {
     int cmdId2 = identifyCmd(mbBuf, outLen);
     Serial.print("Identified Modbus command ");
     Serial.println(cmdId2 ? cmdId2 : 0);
+    printTimestamp();
     Serial.println(" -> forwarding to sender");
     Serial.print("Forwarding command ");
     Serial.print(cmdId2);
     Serial.println(" to sender");
+    printTimestamp();
     Serial.print("Connecting to sender...");
     if (connectWithRetry(outClient, senderIp, 1502)) {
       Serial.println("connected");

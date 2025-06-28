@@ -1,6 +1,7 @@
 #include <SPI.h>
 #include <Ethernet.h>
 #include <avr/wdt.h>
+#include <stdio.h>
 
 // Example sketch for an Arduino Uno equipped with a W5500 Ethernet shield.
 //
@@ -41,6 +42,24 @@ const int ACTIVE_CMDS = 2;
 int chosenCmds[ACTIVE_CMDS] = {0, 1};
 int chosenIndex = 0;
 
+// Format millis() into HH:MM:SS for logging.
+static void formatTime(unsigned long ms, char *out, size_t outSize) {
+  unsigned long secs = ms / 1000;
+  unsigned long h = (secs / 3600) % 24;
+  unsigned long m = (secs / 60) % 60;
+  unsigned long s = secs % 60;
+  snprintf(out, outSize, "%02lu:%02lu:%02lu", h, m, s);
+}
+
+// Print the current time in brackets so logs are easier to follow
+static void printTimestamp() {
+  char ts[12];
+  formatTime(millis(), ts, sizeof(ts));
+  Serial.print("[");
+  Serial.print(ts);
+  Serial.print("] ");
+}
+
 // Initialize serial output and the Ethernet stack then start listening
 // for responses from the Modbus ESP32.
 void setup() {
@@ -62,7 +81,7 @@ void setup() {
 }
 
 const unsigned long HEARTBEAT_INTERVAL = 5000; // blink and message every 5 s
-const unsigned long SEND_INTERVAL = 5000;    // transmit command every 5 s
+const unsigned long sendInterval = 10000;      // transmit command every 10 s
 unsigned long lastSend = 0;
 unsigned long lastBeat = 0;
 
@@ -70,6 +89,7 @@ unsigned long lastBeat = 0;
 // command in the current protocol.
 void loop() {
   if (millis() - lastBeat > HEARTBEAT_INTERVAL) {
+    printTimestamp();
     Serial.println("Sender heartbeat");
     digitalWrite(LED_BUILTIN, ledState);
     ledState = !ledState;
@@ -78,7 +98,8 @@ void loop() {
   // Check for response from Modbus ESP32
   EthernetClient inc = server.available();
   if (inc) {
-    Serial.println("Sender received response:");
+    printTimestamp();
+    Serial.println("[MODBUS] Sender received response:");
     while (inc.available()) {
       byte b = inc.read();
       Serial.print("0x");
@@ -94,7 +115,8 @@ void loop() {
   // Check for response from DNP3 ESP32
   EthernetClient incDnp = dnpServer.available();
   if (incDnp) {
-    Serial.println("Sender received DNP3 response:");
+    printTimestamp();
+    Serial.println("[DNP3] Sender received response:");
     while (incDnp.available()) {
       byte b = incDnp.read();
       Serial.print("0x");
@@ -109,21 +131,22 @@ void loop() {
 
 
   // Periodically send frame based on selected mode
-  if (millis() - lastSend > SEND_INTERVAL) {
+  if (millis() - lastSend > sendInterval) {
     const byte *frame = MODBUS_CMDS[chosenCmds[chosenIndex]];
+    printTimestamp();
     if (sendModbus) {
-      Serial.print("Connecting for Modbus frame...");
+      Serial.print("[MODBUS] Connecting for frame...");
       if (client.connect(modbusIp, 502)) { // Modbus TCP port
         Serial.println("connected");
         client.write(frame, 8);
-        Serial.print("Sender transmitted Modbus frame ");
+        Serial.print("[MODBUS] Sent frame ");
         Serial.println(chosenCmds[chosenIndex] + 1);
         client.stop();
       } else {
         Serial.println("failed");
       }
     } else {
-      Serial.print("Connecting for DNP3 frame...");
+      Serial.print("[DNP3] Connecting for frame...");
       if (client.connect(dnpIp, 20000)) { // DNP3 port
         Serial.println("connected");
         byte dnp[8 + 2];
@@ -131,7 +154,7 @@ void loop() {
         memcpy(dnp + 1, frame, 8);
         dnp[9] = 0x16;
         client.write(dnp, sizeof(dnp));
-        Serial.print("Sender transmitted DNP3 frame ");
+        Serial.print("[DNP3] Sent frame ");
         Serial.println(chosenCmds[chosenIndex] + 1);
         client.stop();
       } else {
@@ -143,8 +166,9 @@ void loop() {
     if (cycleCount >= 5) {
       cycleCount = 0;
       sendModbus = !sendModbus;
+      printTimestamp();
       Serial.print("Switching to ");
-      Serial.println(sendModbus ? "Modbus" : "DNP3");
+      Serial.println(sendModbus ? "[MODBUS]" : "[DNP3]");
     }
     lastSend = millis();
   }
