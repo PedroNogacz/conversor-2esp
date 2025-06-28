@@ -20,7 +20,7 @@ This repository documents the wiring and connection strategy for a Modbus-to-DNP
 ### Wiring steps
 
 1. **Connect each W5500 Ethernet module to the TP-Link modem** using standard Ethernet cables, matching the port assignments above.
-2. **Link the ESP32 and second ESP32 boards** with a direct UART connection. Connect TX (GPIO1) on the Modbus ESP32 to RX (GPIO3) on the second ESP32 and connect TX (GPIO1) on the second ESP32 back to RX (GPIO3) on the ESP32. This serial link carries the translated command from the ESP32 to the second ESP32.
+2. **Link the ESP32 and second ESP32 boards** with a direct UART connection. Connect TX (GPIO22) on the Modbus ESP32 to RX (GPIO21) on the second ESP32 and connect TX (GPIO22) on the second ESP32 back to RX (GPIO21) on the ESP32. This serial link carries the translated command from the ESP32 to the second ESP32.
 3. **Power each ESP device** according to its requirements (typically 3.3&nbsp;V regulated power). Ensure grounds are common if using UART between the ESP32 and second ESP32.
 4. **From the second ESP32, connect to the PC** via Ethernet over the TP-Link modem. The PC will receive DNP3 messages.
 5. **Wire a mode button to the Arduino Uno**. Connect one side of a push button to digital pin 2 and the other side to GND. The sketch uses the internal pull-up resistor so the default state selects Modbus mode.
@@ -59,19 +59,19 @@ Each W5500 terminal connects to only one microcontroller pin. Avoid wiring the s
 | **PC**             | PC running DNP3 master   | Ethernet to port 4                                 |
 
 The ESP32 and second ESP32 communicate through a direct 3.3&nbsp;V TTL serial link.
-Connect TX (GPIO1) on each ESP32 to the other board's RX (GPIO3). Both sides operate at
+Connect TX (GPIO22) on each ESP32 to the other board's RX (GPIO21). Both sides operate at
 115200&nbsp;baud using the default 8N1 format.
 
 ### Serial pin reference
 
-Both ESP32 boards use UART0 for the converter link. This exposes **TX** (GPIO1) and **RX** (GPIO3) on each board. Wire these terminals together between the boards as shown below:
+Both ESP32 boards use UART1 for the converter link. This exposes **TX** (GPIO22) and **RX** (GPIO21) on each board. Wire these terminals together between the boards as shown below:
 
 | Board            | Pin label | GPIO | Connection to |
 |------------------|-----------|------|---------------|
-| Modbus ESP32     | TX        | 1    | second ESP32 RX (GPIO3) |
-| Modbus ESP32     | RX        | 3    | second ESP32 TX (GPIO1) |
-| second ESP32          | TX        | 1    | Modbus ESP32 RX (GPIO3) |
-| second ESP32          | RX        | 3    | Modbus ESP32 TX (GPIO1) |
+| Modbus ESP32     | TX        | 22   | second ESP32 RX (GPIO21) |
+| Modbus ESP32     | RX        | 21   | second ESP32 TX (GPIO22) |
+| second ESP32          | TX        | 22   | Modbus ESP32 RX (GPIO21) |
+| second ESP32          | RX        | 21   | Modbus ESP32 TX (GPIO22) |
 
 ### Mode selection button
 

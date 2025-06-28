@@ -14,13 +14,16 @@
 //     SCK   - GPIO18
 //     CS    - GPIO5
 //     RST   - GPIO16 (see W5500_RST)
-//   Serial link to Modbus ESP32 using UART0
-//     RX  (GPIO3)  <- Modbus ESP32 TX (GPIO1)
-//     TX  (GPIO1)  -> Modbus ESP32 RX (GPIO3)
+//   Serial link to Modbus ESP32 using UART1
+//     RX  (GPIO21) <- Modbus ESP32 TX (GPIO22)
+//     TX  (GPIO22) -> Modbus ESP32 RX (GPIO21)
 //   The built-in LED on GPIO2 blinks every 5 seconds as a heartbeat.
 #ifndef LED_BUILTIN
 #define LED_BUILTIN 2
 #endif
+
+const int LINK_TX = 22; // UART1 TX pin to Modbus ESP32
+const int LINK_RX = 21; // UART1 RX pin from Modbus ESP32
 
 // Helper that converts the ESP reset reason enum to human readable text.
 static const char *resetReasonToString(esp_reset_reason_t reason) {
@@ -127,7 +130,7 @@ static bool connectWithRetry(EthernetClient &cli, IPAddress addr, uint16_t port)
 // Configure the Ethernet interface and serial link to the Modbus ESP32.
 void setup() {
   Serial2.begin(115200);
-  Serial.begin(115200); // Link to Modbus ESP32
+  Serial1.begin(115200, SERIAL_8N1, LINK_RX, LINK_TX); // Link to Modbus ESP32
   esp_reset_reason_t reason = esp_reset_reason();
   Serial2.print("Reset reason: ");
   Serial2.print(resetReasonToString(reason));
@@ -160,12 +163,12 @@ void loop() {
     lastBeat = millis();
   }
   // From Modbus ESP32 to PC
-  if (Serial.available()) {
+  if (Serial1.available()) {
     unsigned long rxStart = micros();
     byte buf[256];
     int len = 0;
-    while (Serial.available() && len < (int)sizeof(buf)) {
-      buf[len++] = Serial.read();
+    while (Serial1.available() && len < (int)sizeof(buf)) {
+      buf[len++] = Serial1.read();
       yield();
     }
     Serial2.print("Received from Modbus ESP32, length: ");
@@ -212,7 +215,7 @@ void loop() {
         memcpy(txHist[txIndex].data, buf, len);
         txIndex = (txIndex + 1) % HIST_SIZE;
         Serial2.println("Message sent to PC");
-        Serial.write((const uint8_t*)"ACK", 3);
+        Serial1.write((const uint8_t*)"ACK", 3);
     } else {
       Serial2.println("failed to connect");
     }
@@ -234,7 +237,7 @@ void loop() {
         Serial2.print(b, HEX);
         Serial2.print(" ");
         buf[len++] = b;
-        Serial.write(b);
+        Serial1.write(b);
         delay(1); // prevent watchdog during prints
       } else {
         delay(1); // keep watchdog fed
