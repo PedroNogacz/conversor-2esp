@@ -293,8 +293,9 @@ void loop() {
     Serial.println(cmdDescription(mbBuf[1]));
 
     printTimestamp();
-    Serial.print("[Sender] Send Response R");
-    Serial.println(lastCmdId);
+    Serial.print("[MODBUS] [Sender] Send Response R");
+    Serial.print(lastCmdId);
+    Serial.println(" to [Sender]");
     client.write((const uint8_t*)"ACK", 3);
 
     Serial.println("[MODBUS] 0x41 0x43 0x4B");
@@ -324,6 +325,14 @@ void loop() {
       if (i < outLen - 1) Serial.print(" ");
     }
     Serial.println();
+
+    printTimestamp();
+    Serial.print("[DNP3] Command Meaning - ");
+    if (outLen > 2) {
+      Serial.println(cmdDescription(dnpBuf[2]));
+    } else {
+      Serial.println("Unknown");
+    }
 
     printTimestamp();
     Serial.println("[DNP3] Send to Conversor DNP3");

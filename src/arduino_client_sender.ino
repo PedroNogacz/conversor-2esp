@@ -1,6 +1,11 @@
 #include <SPI.h>
 #include <Ethernet.h>
+#ifdef ARDUINO_ARCH_AVR
 #include <avr/wdt.h>
+#endif
+#ifdef ESP32
+#include <esp_system.h>
+#endif
 #include <stdio.h>
 
 /*
@@ -95,8 +100,15 @@ static void printTimestamp() {
 void setup() {
   // Step 1: start the serial console for debug messages.
   Serial.begin(115200);
-  Serial.print("Reset cause: 0x");
+  Serial.print("Reset cause: ");
+#ifdef ARDUINO_ARCH_AVR
+  Serial.print("0x");
   Serial.println(MCUSR, HEX);
+#elif defined(ESP32)
+  Serial.println((int)esp_reset_reason());
+#else
+  Serial.println("N/A");
+#endif
   pinMode(LED_BUILTIN, OUTPUT);
   // Step 2: configure the W5500 Ethernet shield.
   Ethernet.begin(mac, ip);
@@ -227,7 +239,7 @@ void loop() {
         Serial.println("[MODBUS] Waiting Response");
         unsigned long waitStart = millis();
         while (client.connected() && !client.available() &&
-               millis() - waitStart < 500) {
+               millis() - waitStart < 1000) {
           delay(1);
         }
         if (client.available()) {
@@ -250,6 +262,9 @@ void loop() {
             Serial.print("[MODBUS] Meaning - ");
             Serial.println(cmdDescription(resp[1]));
           }
+        } else {
+          printTimestamp();
+          Serial.println("[MODBUS] No response");
         }
         lastSentFc = fc;
         client.stop();
@@ -290,7 +305,7 @@ void loop() {
         // Wait briefly for an ACK from the DNP3 converter before closing
         unsigned long waitStart = millis();
         while (client.connected() && !client.available() &&
-               millis() - waitStart < 500) {
+               millis() - waitStart < 1000) {
           delay(1);
         }
         if (client.available()) {
@@ -313,6 +328,9 @@ void loop() {
             Serial.print("[DNP3] Meaning - ");
             Serial.println(cmdDescription(resp[1]));
           }
+        } else {
+          printTimestamp();
+          Serial.println("[DNP3] No response");
         }
         
         lastSentFc = fc;
