@@ -12,15 +12,15 @@ script included in this repository.
    - `192.168.1.60` – Modbus ESP32
    - `192.168.1.70` – DNP3 ESP32
    - `192.168.1.80` – Windows PC
-4. Ensure TCP port `20000` is allowed through the modem firewall.
+4. Ensure TCP ports `20000` and `1502` are allowed through the modem firewall.
 5. On Windows set the PC adapter to `192.168.1.80` with subnet mask
    `255.255.255.0` and the modem as the default gateway.
 
 ## Running the listener
 1. Install Python 3 if it is not already present.
 2. Open a command prompt in this repository directory.
-3. Launch the GUI listener with:
+3. Launch the combined listener with:
    ```
-   python pc_dnp3_gui.py
+   python python_receiver_pc.py
    ```
    Two panes will show incoming Modbus and DNP3 messages separately.
