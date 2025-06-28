@@ -271,8 +271,10 @@ void loop() {
   // From PC to Modbus ESP32
   EthernetClient inc = server.available();
   if (inc) {
-    printTimestamp();
-    Serial.println("Connection from PC accepted");
+      printTimestamp();
+      Serial.print("Connection from PC ");
+      Serial.print(inc.remoteIP());
+      Serial.println(" accepted");
       unsigned long txStart = micros();
     printTimestamp();
     Serial.println("DNP3 ESP32 received from PC:");

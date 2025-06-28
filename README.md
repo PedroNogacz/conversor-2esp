@@ -1,13 +1,13 @@
 # conversor-2esp
 
-This repository documents the wiring and connection strategy for a Modbus-to-DNP3 bridge built from one ESP32 board and a second ESP32.  The ESP32 receives Modbus frames and passes them over a serial link to the second ESP32, which forwards them as DNP3 traffic and returns responses the same way.
+This repository documents the wiring and connection strategy for a Modbus-to-DNP3 bridge built from one ESP32 board and a second ESP32.  The two boards translate in both directions: Modbus frames from the first ESP32 become DNP3 frames on the second board, while DNP3 frames arriving from that board are translated back to Modbus and forwarded on.
 
 ## Hardware layout
 
 - **Sender (Arduino Uno + W5500 Ethernet shield)**: Generates Modbus commands. Periodically sends commands via Ethernet to the first ESP32. The shield already contains the W5500 chip, so no separate module or extra wiring is required—just stack the shield onto the Uno.
 - **First ESP32-WROOM-32 + W5500**: Receives Modbus commands from the Arduino over the local network. It relays them over a direct serial connection to the second ESP32 board and can also send data back to the sender.
-- **Second ESP32-WROOM-32 + W5500**: Communicates with the ESP32 over that serial link. It forwards Modbus frames to the PC as DNP3 and also accepts DNP3 frames from the PC to be returned to the sender.
-- **PC**: Runs the DNP3 master application.
+- **Second ESP32-WROOM-32 + W5500**: Communicates with the first ESP32 over that serial link. Modbus frames received from the first ESP32 are forwarded to the PC as DNP3. DNP3 frames from the PC are relayed back so the first ESP32 can convert them to Modbus before also sending them to the PC.
+- **PC**: Runs listeners for both protocols and receives whichever format the converters send.
 - **TP-Link 4‑port modem**: Provides Ethernet connectivity for all nodes.
 
 ### Ethernet port assignment
@@ -22,10 +22,10 @@ This repository documents the wiring and connection strategy for a Modbus-to-DNP
 1. **Connect each W5500 Ethernet module to the TP-Link modem** using standard Ethernet cables, matching the port assignments above.
 2. **Link the ESP32 and second ESP32 boards** with a direct UART connection. Connect TX (GPIO22) on the Modbus ESP32 to RX (GPIO21) on the second ESP32 and connect TX (GPIO22) on the second ESP32 back to RX (GPIO21) on the ESP32. This serial link carries the translated command from the ESP32 to the second ESP32.
 3. **Power each ESP device** according to its requirements (typically 3.3&nbsp;V regulated power). Ensure grounds are common if using UART between the ESP32 and second ESP32.
-4. **From the second ESP32, connect to the PC** via Ethernet over the TP-Link modem. The PC will receive DNP3 messages.
+4. **From the second ESP32, connect to the PC** via Ethernet over the TP-Link modem. Depending on the direction of travel the PC may receive either protocol.
 5. **Wire a mode button to the Arduino Uno**. Connect one side of a push button to digital pin 2 and the other side to GND. The sketch uses the internal pull-up resistor so the default state selects Modbus mode.
 
-With this arrangement, the Arduino Uno sender places Modbus frames onto the network, the ESP32 relays them via the serial link, and the second ESP32 converts the frames to DNP3 for the PC. Messages from the PC travel the reverse path back to the sender.
+With this arrangement, a Modbus command from the sender travels through the Modbus ESP32 then the DNP3 ESP32 before reaching the PC. If a DNP3 command is sent instead, it flows through the DNP3 ESP32, is converted back to Modbus on the first board and then forwarded to the PC as well.
 
 ### W5500 wiring for each board
 
@@ -98,6 +98,8 @@ Both ESP32 sketches now verify these messages. When either board receives a
 frame it prints which example command was recognised or notes that the bytes do
 not match the expected format. This helps confirm the converter link is working
 and that Modbus frames are preserved inside the DNP3 wrapper.
+Whenever a connection is accepted over Ethernet the log now includes the
+remote IP address so you can see which host sent the command.
 
 Each board logs the command name based on the table in
 `tabela_modbus_dnp3.md` so the meaning of every request is shown.  Commands are
