@@ -1,8 +1,10 @@
 """Combined GUI and console listener for Modbus/DNP3 frames.
 
-This script merges the functionality of ``pc_dnp3_gui.py`` and
-``pc_dnp3_listener.py``. It opens TCP port 20000 and displays
-all frames received from the converter both in a Tkinter window
+This script merges the functionality of the old ``pc_dnp3_gui.py`` and
+``pc_dnp3_listener.py`` utilities.  It now listens on two ports so it can
+receive DNP3 data from the DNP3 ESP32 and Modbus data from the Modbus
+ESP32 simultaneously.  Port ``20000`` is used for DNP3 while port ``1502``
+captures Modbus frames.  All traffic is displayed both in a Tkinter window
 and on the command line.
 
 Steps to run on Windows:
@@ -60,23 +62,22 @@ def bits_str(data: bytes) -> str:
     return " ".join(f"{b:08b}" for b in data)
 
 
-def server_thread(msg_queue: queue.Queue) -> None:
-    """Accept connections and queue summaries for the GUI."""
-    # Step 1: create a TCP socket and listen on port 20000.
+def server_thread(port: int, proto: str, msg_queue: queue.Queue) -> None:
+    """Accept connections on *port* and queue summaries for the GUI."""
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    s.bind(("0.0.0.0", 20000))  # bind on all interfaces
+    s.bind(("0.0.0.0", port))
     s.listen(1)
 
     # Step 2: notify the GUI that we started listening.
     start = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    info = f"Listener started at {start}\n"
+    info = f"Listening on port {port} ({proto}) at {start}\n"
     msg_queue.put(("info", info))
     print(info.strip())
 
     # Step 3: wait for incoming connections forever.
     while True:
         conn, addr = s.accept()
-        print(f"Connection from {addr[0]}")
+        print(f"Connection on {port} from {addr[0]}")
         buf = b""
         # Step 4: read all data sent by the client.
         while True:
@@ -90,14 +91,15 @@ def server_thread(msg_queue: queue.Queue) -> None:
 
         # Step 6: decode the received bytes.
         timestamp = datetime.now().strftime("%H:%M:%S")
-        if is_dnp3(buf):
-            proto = "DNP3"
-            payload = buf[1:-1]
-            print("Frame appears to be DNP3")
-        else:
-            proto = "Modbus"
+        if proto == "DNP3":
+            if is_dnp3(buf):
+                payload = buf[1:-1]
+                print("Frame appears to be DNP3")
+            else:
+                payload = buf
+                print("Frame missing DNP3 markers")
+        else:  # Modbus port
             payload = buf
-            print("Frame is not valid DNP3")
 
         # Step 7: look up a friendly name for the command.
         cmd_name = MODBUS_CMDS.get(payload)
@@ -108,7 +110,7 @@ def server_thread(msg_queue: queue.Queue) -> None:
 
         # Step 8: build a message that will appear in the GUI and console.
         summary = (
-            f"Time: {timestamp} From {addr[0]}\n"
+            f"Time: {timestamp} From {addr[0]} Port {port}\n"
             f"Bytes: {buf.hex(' ')}\n"
             f"Bits: {bits_str(buf)}\n"
             f"Command: {cmd_name}\n\n"
@@ -123,9 +125,10 @@ def main() -> None:
     # Create a queue that the network thread will use to pass
     # messages to the GUI.
     q: queue.Queue = queue.Queue()
-    # Launch the background thread that listens for incoming frames.
-    th = threading.Thread(target=server_thread, args=(q,), daemon=True)
-    th.start()
+    # Launch background threads that listen on the Modbus and DNP3 ports.
+    for port, proto in ((20000, "DNP3"), (1502, "Modbus")):
+        th = threading.Thread(target=server_thread, args=(port, proto, q), daemon=True)
+        th.start()
 
     # Step 1: create the main Tk window.
     root = tk.Tk()
