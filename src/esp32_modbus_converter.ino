@@ -382,7 +382,11 @@ void loop() {
     }
     printTimestamp();
     Serial.print("[MODBUS] Command Meaning - ");
-    Serial.println(cmdDescription(inBuf[1]));
+    if (len > 2) {
+      Serial.println(cmdDescription(inBuf[2]));
+    } else {
+      Serial.println("Unknown");
+    }
 
     byte mbBuf[260];
     unsigned long trans2Start = micros();
