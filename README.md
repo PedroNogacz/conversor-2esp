@@ -110,6 +110,11 @@ For troubleshooting purposes every converter now replies with a short
 prints these acknowledgements on its serial console so you can confirm
 each command made the round trip.
 
+All three sketches now synchronise their clocks using NTP during setup so the
+timestamps printed on each board line up. When a message is sent the sender
+prints the exact bytes before transmission and it reports ``ACK`` when the
+converter confirms receipt. This makes comparing logs across devices easier.
+
 ### Handling watchdog resets
 
 If either ESP32 suddenly resets with `Reset reason: 5` (shown in the

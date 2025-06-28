@@ -1,6 +1,7 @@
 #include <SPI.h>
 #include <Ethernet.h>
 #include <esp_system.h>
+#include <time.h>
 #include <stdio.h>
 
 // ESP32 sketch that receives Modbus frames from the Arduino sender,
@@ -138,18 +139,22 @@ int txIndex = 0;
 int rxIndex = 0;
 
 // Format millis() into HH:MM:SS for logging
-static void formatTime(unsigned long ms, char *out, size_t outSize) {
-  unsigned long secs = ms / 1000;
-  unsigned long h = (secs / 3600) % 24;
-  unsigned long m = (secs / 60) % 60;
-  unsigned long s = secs % 60;
-  snprintf(out, outSize, "%02lu:%02lu:%02lu", h, m, s);
-}
-
-// Print the timestamp prefix used for log lines
+// Print the timestamp prefix used for log lines. If NTP has provided the time
+// use it, otherwise fall back to millis since boot.
 static void printTimestamp() {
+  time_t now = time(nullptr);
   char ts[12];
-  formatTime(millis(), ts, sizeof(ts));
+  if (now > 0) {
+    struct tm tm;
+    localtime_r(&now, &tm);
+    snprintf(ts, sizeof(ts), "%02d:%02d:%02d", tm.tm_hour, tm.tm_min, tm.tm_sec);
+  } else {
+    unsigned long secs = millis() / 1000;
+    unsigned long h = (secs / 3600) % 24;
+    unsigned long m = (secs / 60) % 60;
+    unsigned long s = secs % 60;
+    snprintf(ts, sizeof(ts), "%02lu:%02lu:%02lu", h, m, s);
+  }
   Serial.print("[");
   Serial.print(ts);
   Serial.print("] ");
@@ -198,6 +203,7 @@ void setup() {
   }
   Serial.print("Modbus ESP32 IP: ");
   Serial.println(Ethernet.localIP());
+  configTime(0, 0, "pool.ntp.org");
   server.begin();
 }
 
@@ -302,6 +308,9 @@ void loop() {
     while (Serial1.available() && len < (int)sizeof(inBuf)) {
       inBuf[len++] = Serial1.read();
       yield();
+    }
+    if (len >= 3 && inBuf[len-3]=='A' && inBuf[len-2]=='C' && inBuf[len-1]=='K') {
+      len -= 3;
     }
     Serial.print("Received from DNP3 ESP32, length: ");
     Serial.println(len);
