@@ -70,13 +70,14 @@ static const char *cmdDescription(uint8_t fc) {
 }
 
 
-// Format epoch milliseconds into HH:MM:SS for logging.
+// Format epoch milliseconds into MM:SS:mmm for logging. The sender
+// prints only minutes, seconds and milliseconds as requested.
 static void formatTime(unsigned long ms, char *out, size_t outSize) {
-  unsigned long secs = ms / 1000;
-  unsigned long h = (secs % 86400UL) / 3600UL;
-  unsigned long m = (secs % 3600UL) / 60UL;
-  unsigned long s = secs % 60UL;
-  snprintf(out, outSize, "%02lu:%02lu:%02lu", h, m, s);
+  unsigned long total = ms / 1000UL;
+  unsigned long m = (total / 60UL) % 60UL;
+  unsigned long s = total % 60UL;
+  unsigned long msPart = ms % 1000UL;
+  snprintf(out, outSize, "%02lu:%02lu:%03lu", m, s, msPart);
 }
 
 // Print the current time in brackets so logs are easier to follow
@@ -202,9 +203,12 @@ void loop() {
     Serial.println();
     printTimestamp();
     if (sendModbus) {
-      Serial.print("[MODBUS] Connecting for frame...");
+      Serial.println("[MODBUS] Connecting for frame...");
       if (client.connect(modbusIp, 502)) { // Modbus TCP port
-        Serial.println("connected");
+        printTimestamp();
+        Serial.print("[MODBUS] Connected IP ");
+        Serial.println(modbusIp);
+        printTimestamp();
         Serial.print("[MODBUS] Sending: ");
         for (int i = 0; i < 8; i++) {
           Serial.print("0x");
@@ -214,10 +218,39 @@ void loop() {
         }
         Serial.println();
         client.write(frame, 8);
+        printTimestamp();
         Serial.print("[MODBUS] Sent frame ");
         Serial.print(chosenCmds[chosenIndex] + 1);
         Serial.print(" - ");
         Serial.println(cmdDescription(fc));
+        printTimestamp();
+        Serial.println("[MODBUS] Waiting Response");
+        unsigned long waitStart = millis();
+        while (client.connected() && !client.available() &&
+               millis() - waitStart < 500) {
+          delay(1);
+        }
+        if (client.available()) {
+          byte resp[16];
+          int rlen = 0;
+          while (client.available() && rlen < (int)sizeof(resp)) {
+            resp[rlen++] = client.read();
+          }
+          printTimestamp();
+          Serial.print("[MODBUS] Response: ");
+          for (int i = 0; i < rlen; i++) {
+            Serial.print("0x");
+            if (resp[i] < 16) Serial.print("0");
+            Serial.print(resp[i], HEX);
+            Serial.print(" ");
+          }
+          Serial.println();
+          if (rlen >= 2) {
+            printTimestamp();
+            Serial.print("[MODBUS] Meaning - ");
+            Serial.println(cmdDescription(resp[1]));
+          }
+        }
         lastSentFc = fc;
         client.stop();
         Serial.println();
@@ -225,13 +258,16 @@ void loop() {
         Serial.println("failed");
       }
     } else {
-      Serial.print("[DNP3] Connecting for frame...");
+      Serial.println("[DNP3] Connecting for frame...");
       if (client.connect(dnpIp, 20000)) { // DNP3 port
-        Serial.println("connected");
+        printTimestamp();
+        Serial.print("[DNP3] Connected IP ");
+        Serial.println(dnpIp);
         byte dnp[8 + 2];
         dnp[0] = 0x05;
         memcpy(dnp + 1, frame, 8);
         dnp[9] = 0x16;
+        printTimestamp();
         Serial.print("[DNP3] Sending: ");
         for (int i = 0; i < 10; i++) {
           byte b = dnp[i];
@@ -242,10 +278,14 @@ void loop() {
         }
         Serial.println();
         client.write(dnp, sizeof(dnp));
+        printTimestamp();
         Serial.print("[DNP3] Sent frame ");
         Serial.print(chosenCmds[chosenIndex] + 1);
         Serial.print(" - ");
         Serial.println(cmdDescription(fc));
+
+        printTimestamp();
+        Serial.println("[DNP3] Waiting Response");
 
         // Wait briefly for an ACK from the DNP3 converter before closing
         unsigned long waitStart = millis();
@@ -260,7 +300,7 @@ void loop() {
             resp[rlen++] = client.read();
           }
           printTimestamp();
-          Serial.println("[DNP3] Sender received response:");
+          Serial.print("[DNP3] Response: ");
           for (int i = 0; i < rlen; i++) {
             Serial.print("0x");
             if (resp[i] < 16) Serial.print("0");
@@ -268,13 +308,13 @@ void loop() {
             Serial.print(" ");
           }
           Serial.println();
-          if (rlen == 3 && resp[0] == 'A' && resp[1] == 'C' && resp[2] == 'K') {
-            Serial.print("R");
-            Serial.print(lastCmdId);
-            Serial.print(": ACK for ");
-            Serial.println(cmdDescription(lastSentFc));
+          if (rlen >= 2) {
+            printTimestamp();
+            Serial.print("[DNP3] Meaning - ");
+            Serial.println(cmdDescription(resp[1]));
           }
         }
+        
         lastSentFc = fc;
         client.stop();
         Serial.println();
