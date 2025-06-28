@@ -81,7 +81,7 @@ void setup() {
 }
 
 const unsigned long HEARTBEAT_INTERVAL = 5000; // blink and message every 5 s
-unsigned long sendInterval = 5000;            // start with 5 s between frames
+const unsigned long sendInterval = 10000;      // transmit command every 10 s
 unsigned long lastSend = 0;
 unsigned long lastBeat = 0;
 
@@ -99,7 +99,7 @@ void loop() {
   EthernetClient inc = server.available();
   if (inc) {
     printTimestamp();
-    Serial.println("Sender received response:");
+    Serial.println("[MODBUS] Sender received response:");
     while (inc.available()) {
       byte b = inc.read();
       Serial.print("0x");
@@ -116,7 +116,7 @@ void loop() {
   EthernetClient incDnp = dnpServer.available();
   if (incDnp) {
     printTimestamp();
-    Serial.println("Sender received DNP3 response:");
+    Serial.println("[DNP3] Sender received response:");
     while (incDnp.available()) {
       byte b = incDnp.read();
       Serial.print("0x");
@@ -135,18 +135,18 @@ void loop() {
     const byte *frame = MODBUS_CMDS[chosenCmds[chosenIndex]];
     printTimestamp();
     if (sendModbus) {
-      Serial.print("Connecting for Modbus frame...");
+      Serial.print("[MODBUS] Connecting for frame...");
       if (client.connect(modbusIp, 502)) { // Modbus TCP port
         Serial.println("connected");
         client.write(frame, 8);
-        Serial.print("Sent Modbus frame ");
+        Serial.print("[MODBUS] Sent frame ");
         Serial.println(chosenCmds[chosenIndex] + 1);
         client.stop();
       } else {
         Serial.println("failed");
       }
     } else {
-      Serial.print("Connecting for DNP3 frame...");
+      Serial.print("[DNP3] Connecting for frame...");
       if (client.connect(dnpIp, 20000)) { // DNP3 port
         Serial.println("connected");
         byte dnp[8 + 2];
@@ -154,15 +154,13 @@ void loop() {
         memcpy(dnp + 1, frame, 8);
         dnp[9] = 0x16;
         client.write(dnp, sizeof(dnp));
-        Serial.print("Sent DNP3 frame ");
+        Serial.print("[DNP3] Sent frame ");
         Serial.println(chosenCmds[chosenIndex] + 1);
         client.stop();
       } else {
         Serial.println("failed");
       }
     }
-    Serial.print("Next interval ms: ");
-    Serial.println(sendInterval + 1000);
     chosenIndex = (chosenIndex + 1) % ACTIVE_CMDS;
     cycleCount++;
     if (cycleCount >= 5) {
@@ -170,10 +168,9 @@ void loop() {
       sendModbus = !sendModbus;
       printTimestamp();
       Serial.print("Switching to ");
-      Serial.println(sendModbus ? "Modbus" : "DNP3");
+      Serial.println(sendModbus ? "[MODBUS]" : "[DNP3]");
     }
     lastSend = millis();
-    sendInterval += 1000; // slow down by 1 second each message
   }
   delay(1); // keep watchdog happy
 }
