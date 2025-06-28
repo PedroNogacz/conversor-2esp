@@ -3,9 +3,19 @@
 This script merges the functionality of ``pc_dnp3_gui.py`` and
 ``pc_dnp3_listener.py``. It opens TCP port 20000 and displays
 all frames received from the converter both in a Tkinter window
-and on the command line. Messages are separated into Modbus and
-DNP3 panes in the GUI while the console output mirrors the
-information printed in the original listener.
+and on the command line.
+
+Steps to run on Windows:
+1. Install Python 3 from https://python.org.
+2. Open ``cmd`` and ``cd`` into this repository.
+3. Run ``python python_receiver_pc.py``.
+4. Allow access through the firewall when Windows asks.
+5. The script prints connection info in the console and opens a
+   window with two panes (one for DNP3 and one for Modbus).
+
+Messages are separated into Modbus and DNP3 panes in the GUI while
+the console output mirrors the information printed in the original
+listener.
 """
 
 import socket
@@ -38,35 +48,47 @@ CMD_NAMES = {
 
 def is_dnp3(data: bytes) -> bool:
     """Return True if *data* appears to be a minimal DNP3 frame."""
+    # DNP3 frames begin with 0x05 and end with 0x16 in this
+    # simplified example. Any data matching that pattern is
+    # treated as DNP3 rather than raw Modbus.
     return len(data) >= 2 and data[0] == 0x05 and data[-1] == 0x16
 
 
 def bits_str(data: bytes) -> str:
     """Convert bytes to a space separated bit string."""
+    # Useful for debugging to see the individual bits of a frame.
     return " ".join(f"{b:08b}" for b in data)
 
 
 def server_thread(msg_queue: queue.Queue) -> None:
     """Accept connections and queue summaries for the GUI."""
+    # Step 1: create a TCP socket and listen on port 20000.
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    s.bind(("0.0.0.0", 20000))
+    s.bind(("0.0.0.0", 20000))  # bind on all interfaces
     s.listen(1)
+
+    # Step 2: notify the GUI that we started listening.
     start = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     info = f"Listener started at {start}\n"
     msg_queue.put(("info", info))
     print(info.strip())
+
+    # Step 3: wait for incoming connections forever.
     while True:
         conn, addr = s.accept()
         print(f"Connection from {addr[0]}")
         buf = b""
+        # Step 4: read all data sent by the client.
         while True:
             chunk = conn.recv(1024)
             if not chunk:
                 break
             buf += chunk
+        # Step 5: acknowledge and close the connection.
         conn.sendall(b"ACK")
         conn.close()
 
+        # Step 6: decode the received bytes.
         timestamp = datetime.now().strftime("%H:%M:%S")
         if is_dnp3(buf):
             proto = "DNP3"
@@ -77,12 +99,14 @@ def server_thread(msg_queue: queue.Queue) -> None:
             payload = buf
             print("Frame is not valid DNP3")
 
+        # Step 7: look up a friendly name for the command.
         cmd_name = MODBUS_CMDS.get(payload)
         if cmd_name is None and len(payload) >= 2:
             cmd_name = CMD_NAMES.get(payload[1], "Unknown")
         if cmd_name is None:
             cmd_name = "Unknown"
 
+        # Step 8: build a message that will appear in the GUI and console.
         summary = (
             f"Time: {timestamp} From {addr[0]}\n"
             f"Bytes: {buf.hex(' ')}\n"
@@ -90,24 +114,30 @@ def server_thread(msg_queue: queue.Queue) -> None:
             f"Command: {cmd_name}\n\n"
         )
 
-        msg_queue.put((proto, summary))
-        print(summary, end="")
+        msg_queue.put((proto, summary))  # send to GUI
+        print(summary, end="")          # echo to console
 
 
 def main() -> None:
     """Start the listener thread and run the Tkinter GUI."""
+    # Create a queue that the network thread will use to pass
+    # messages to the GUI.
     q: queue.Queue = queue.Queue()
+    # Launch the background thread that listens for incoming frames.
     th = threading.Thread(target=server_thread, args=(q,), daemon=True)
     th.start()
 
+    # Step 1: create the main Tk window.
     root = tk.Tk()
     root.title("Protocol Listener")
 
+    # Step 2: build the DNP3 text area on the left.
     frame_dnp = tk.LabelFrame(root, text="DNP3 Messages")
     frame_dnp.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
     text_dnp = ScrolledText(frame_dnp, width=60, height=20)
     text_dnp.pack(fill=tk.BOTH, expand=True)
 
+    # Step 3: build the Modbus text area on the right.
     frame_mb = tk.LabelFrame(root, text="Modbus Messages")
     frame_mb.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
     text_mb = ScrolledText(frame_mb, width=60, height=20)
