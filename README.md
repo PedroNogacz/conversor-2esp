@@ -152,9 +152,10 @@ each frame received from the converter.  The script now reports the origin IP
 address and which example command was detected.  Only the start time of the
 listener itself is printed so individual messages are easier to read.
 
-An alternate script, `pc_dnp3_gui.py`, provides a basic graphical interface for
-the same listener.  It shows a short summary for every message including the
-origin address and identified command without a timestamp for each entry.
+An alternate script, `pc_dnp3_gui.py`, provides a graphical interface for the
+same listener. The window now contains two panes so Modbus and DNP3 messages are
+displayed separately. Each entry shows the origin address and the decoded
+command.
 
 ### Network setup for Windows and TP-Link modem
 
@@ -168,5 +169,6 @@ origin address and identified command without a timestamp for each entry.
 4. Make sure the modem allows traffic on TCP port 20000. If a firewall is active, create a rule to permit this port so the Python listener can accept connections.
 5. On Windows open the network adapter settings and assign the static IP `192.168.1.80` with subnet mask `255.255.255.0` and the modem as the default gateway.
 6. Install Python 3 on the PC if it is not already present. Open a command prompt in this repository and run `python pc_dnp3_listener.py` (or `python pc_dnp3_gui.py` for the GUI) to start listening for frames.
+   Detailed steps are provided in `WINDOWS_PY_SETUP.md`.
 
 With these addresses in place the converter boards will reach the PC and the Python scripts will display the traffic.
