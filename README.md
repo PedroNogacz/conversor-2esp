@@ -153,6 +153,18 @@ DNP3 ESP32 and **port&nbsp;1502** for Modbus frames from the Modbus ESP32.  A
 Tkinter window displays each message in separate panes while the console prints
 the same information.
 
+#### Requirements
+
+The listener relies solely on Python's standard library. It uses the Tkinter
+GUI toolkit which is typically bundled with Python on Windows and macOS. On
+Debian/Ubuntu based distributions install it with:
+
+```
+sudo apt install python3-tk
+```
+
+No additional packages are needed.
+
 ### Network setup for Windows and TP-Link modem
 
 1. Connect the Arduino, both ESP32 boards and the PC to the four LAN ports of the TP-Link modem using Ethernet cables.
