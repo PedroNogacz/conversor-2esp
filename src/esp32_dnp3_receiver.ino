@@ -1,6 +1,7 @@
 #include <SPI.h>
 #include <Ethernet.h>
 #include <esp_system.h>
+#include <stdio.h>
 
 // ESP32 sketch that forwards Modbus data to a PC as DNP3 frames and
 // routes any PC responses back to the Modbus ESP32 over a serial link.
@@ -85,6 +86,24 @@ Msg rxHist[HIST_SIZE];
 int txIndex = 0;
 int rxIndex = 0;
 
+// Format millis() into HH:MM:SS for consistent logging
+static void formatTime(unsigned long ms, char *out, size_t outSize) {
+  unsigned long secs = ms / 1000;
+  unsigned long h = (secs / 3600) % 24;
+  unsigned long m = (secs / 60) % 60;
+  unsigned long s = secs % 60;
+  snprintf(out, outSize, "%02lu:%02lu:%02lu", h, m, s);
+}
+
+// Helper to print the current timestamp before log lines
+static void printTimestamp() {
+  char ts[12];
+  formatTime(millis(), ts, sizeof(ts));
+  Serial.print("[");
+  Serial.print(ts);
+  Serial.print("] ");
+}
+
 // Attempt to bring up the Ethernet interface while keeping the watchdog fed.
 static bool startEthernet()
 {
@@ -157,6 +176,7 @@ void setup() {
 // printing diagnostic timing information.
 void loop() {
   if (millis() - lastBeat > HEARTBEAT_INTERVAL) {
+    printTimestamp();
     Serial.println("DNP3 ESP32 heartbeat");
     digitalWrite(LED_BUILTIN, ledState);
     ledState = !ledState;
@@ -178,6 +198,7 @@ void loop() {
     Serial.println(rxEnd - rxStart);
     memcpy(rxHist[rxIndex].data, buf, len);
     rxIndex = (rxIndex + 1) % HIST_SIZE;
+    printTimestamp();
     Serial.print("DNP3 ESP32 received from Modbus: ");
     for (int i = 0; i < len; i++) {
       Serial.print("0x");
@@ -195,11 +216,13 @@ void loop() {
     } else {
       Serial.println("Invalid DNP3 frame");
     }
+    printTimestamp();
     Serial.println(" -> sending to PC");
     Serial.print("Forwarding command ");
     Serial.print(cmdId);
     Serial.println(" to PC");
     Serial.println("DNP3 ESP32 notifying: attempting to connect to PC");
+    printTimestamp();
     Serial.print("Connecting to PC...");
     if (connectWithRetry(outClient, pcIp, 20000)) {
         Serial.println("connected");
@@ -224,8 +247,10 @@ void loop() {
   // From PC to Modbus ESP32
   EthernetClient inc = server.available();
   if (inc) {
+    printTimestamp();
     Serial.println("Connection from PC accepted");
       unsigned long txStart = micros();
+    printTimestamp();
     Serial.println("DNP3 ESP32 received from PC:");
     byte buf[256];
     int len = 0;
@@ -245,6 +270,7 @@ void loop() {
     }
     // Let the PC know we received the frame
     inc.write((const uint8_t*)"ACK", 3);
+    printTimestamp();
     Serial.print("Forwarding to Modbus ESP32, length: ");
     Serial.println(len);
     Serial.println();
