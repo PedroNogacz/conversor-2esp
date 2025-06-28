@@ -59,6 +59,7 @@ byte mac[] = { 0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0x03 };
 IPAddress ip(192, 168, 1, 70);
 IPAddress senderIp(192, 168, 1, 50); // Arduino Uno sender address
 IPAddress pcIp(192, 168, 1, 80);
+IPAddress modbusIp(192, 168, 1, 60); // Modbus ESP32 address
 
 const int W5500_RST = 16; // GPIO used to reset the Ethernet module
 
@@ -115,6 +116,26 @@ Msg txHist[HIST_SIZE];
 Msg rxHist[HIST_SIZE];
 int txIndex = 0;
 int rxIndex = 0;
+
+// Simple placeholder translation routines -----------------------------
+
+// Wrap a Modbus frame with dummy DNP3 start/end bytes.
+int modbusToDnp3(const byte *in, int len, byte *out, int outSize) {
+  if (outSize < len + 2) return 0;
+  out[0] = 0x05;                // pretend DNP3 start
+  memcpy(out + 1, in, len);
+  out[len + 1] = 0x16;          // pretend DNP3 end
+  return len + 2;
+}
+
+// Remove the fake DNP3 bytes and recover the original Modbus frame.
+int dnp3ToModbus(const byte *in, int len, byte *out, int outSize) {
+  if (len < 2) return 0;        // too short
+  int count = len - 2;
+  if (count > outSize) count = outSize;
+  memcpy(out, in + 1, count);   // strip start/end bytes
+  return count;
+}
 
 // Format millis() into HH:MM:SS for consistent logging. Each board
 // prints timestamps based solely on its own uptime.
@@ -253,17 +274,33 @@ void loop() {
     cmdCounter++;
     lastCmdId = cmdCounter;
     lastCmdFc = buf[1];
+
+    printTimestamp();
     Serial.print("C");
     Serial.print(lastCmdId);
-    Serial.print(": forwarding ");
-    Serial.print(cmdDescription(buf[1]));
-    if (cmdId) {
-      Serial.print(" (example ");
-      Serial.print(cmdId);
-      Serial.println(") to PC");
-    } else {
-      Serial.println(" to PC");
+    Serial.println(": Command Received");
+
+    printTimestamp();
+    Serial.print("[Sender] - IP ");
+    Serial.println(modbusIp);
+
+    printTimestamp();
+    Serial.print("[Sender] Command C");
+    Serial.println(lastCmdId);
+
+    Serial.print("[DNP3] ");
+    for (int i = 0; i < len; i++) {
+      Serial.print("0x");
+      if (buf[i] < 16) Serial.print("0");
+      Serial.print(buf[i], HEX);
+      if (i < len - 1) Serial.print(" ");
     }
+    Serial.println();
+
+    printTimestamp();
+    Serial.print("[DNP3] Command Meaning - ");
+    Serial.println(cmdDescription(buf[1]));
+
     Serial.println("DNP3 ESP32 notifying: attempting to connect to PC");
     printTimestamp();
     Serial.print("Connecting to PC...");
@@ -340,6 +377,33 @@ void loop() {
     printTimestamp();
     Serial.println("[DNP3] Response Meaning - ACK");
     inc.stop();
+
+    byte mbBuf[260];
+    int modLen = dnp3ToModbus(buf, len, mbBuf, sizeof(mbBuf));
+
+    printTimestamp();
+    Serial.println("[DNP3] Translated command to Modbus");
+    printTimestamp();
+    Serial.print("Command C");
+    Serial.print(lastCmdId);
+    Serial.println(" in Modbus");
+
+    Serial.print("[MODBUS] ");
+    for (int i = 0; i < modLen; i++) {
+      Serial.print("0x");
+      if (mbBuf[i] < 16) Serial.print("0");
+      Serial.print(mbBuf[i], HEX);
+      if (i < modLen - 1) Serial.print(" ");
+    }
+    Serial.println();
+
+    printTimestamp();
+    Serial.print("[MODBUS] Command Meaning - ");
+    if (modLen > 1) {
+      Serial.println(cmdDescription(mbBuf[1]));
+    } else {
+      Serial.println("Unknown");
+    }
 
     rxHist[rxIndex].len = len;
     memcpy(rxHist[rxIndex].data, buf, len);
