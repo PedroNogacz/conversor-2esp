@@ -155,15 +155,16 @@ static int readClient(EthernetClient &cli, byte *buf, int bufSize,
   return len;
 }
 
-// Format millis() into HH:MM:SS for consistent logging. Each board
+// Format millis() into MM:SS.mmm for consistent logging. Each board
 // prints timestamps based solely on its own uptime.
 static void printTimestamp() {
-  unsigned long secs = millis() / 1000;
-  unsigned long h = (secs / 3600) % 24;
-  unsigned long m = (secs / 60) % 60;
-  unsigned long s = secs % 60;
-  char ts[12];
-  snprintf(ts, sizeof(ts), "%02lu:%02lu:%02lu", h, m, s);
+  unsigned long ms = millis();
+  unsigned long totalSecs = ms / 1000;
+  unsigned long m = (totalSecs / 60) % 60;
+  unsigned long s = totalSecs % 60;
+  unsigned long msRem = ms % 1000;
+  char ts[16];
+  snprintf(ts, sizeof(ts), "%02lu:%02lu.%03lu", m, s, msRem);
   Serial.print("[");
   Serial.print(ts);
   Serial.print("] ");
@@ -252,6 +253,7 @@ void loop() {
   if (millis() - lastBeat > HEARTBEAT_INTERVAL) {
     printTimestamp();
     Serial.println("DNP3 ESP32 heartbeat");
+    Serial.println();
     digitalWrite(LED_BUILTIN, ledState);
     ledState = !ledState;
     lastBeat = millis();
@@ -268,7 +270,12 @@ void loop() {
     if (len >= 3 && buf[len-3]=='A' && buf[len-2]=='C' && buf[len-1]=='K') {
       len -= 3;
     }
-    Serial.print("Received from Modbus ESP32, length: ");
+    printTimestamp();
+    Serial.print("COMMAND C");
+    Serial.println(lastCmdId);
+
+    printTimestamp();
+    Serial.print("[DNP3] Received from Modbus ESP32, length: ");
     Serial.println(len);
     unsigned long rxEnd = micros();
     Serial.print("Time to receive us: ");
@@ -276,7 +283,7 @@ void loop() {
     memcpy(rxHist[rxIndex].data, buf, len);
     rxIndex = (rxIndex + 1) % HIST_SIZE;
     printTimestamp();
-    Serial.print("DNP3 ESP32 received from Modbus: ");
+    Serial.print("[DNP3] ");
     for (int i = 0; i < len; i++) {
       Serial.print("0x");
       if (buf[i] < 16) Serial.print("0");
@@ -294,9 +301,8 @@ void loop() {
     lastCmdFc = buf[1];
 
     printTimestamp();
-    Serial.print("C");
-    Serial.print(lastCmdId);
-    Serial.println(": Command Received");
+    Serial.print("COMMAND C");
+    Serial.println(lastCmdId);
 
     printTimestamp();
     Serial.print("[Sender] - IP ");
@@ -319,8 +325,12 @@ void loop() {
     Serial.print("[DNP3] Command Meaning - ");
     Serial.println(cmdDescription(buf[1]));
 
-    Serial.println("DNP3 ESP32 notifying: attempting to connect to PC");
     printTimestamp();
+    Serial.print("[DNP3] Forwarding C");
+    Serial.print(lastCmdId);
+    Serial.print(" - PC: IP ");
+    Serial.println(pcIp);
+
     Serial.print("Connecting to PC...");
     if (connectWithRetry(outClient, pcIp, 20000)) {
         Serial.println("connected");
@@ -340,6 +350,7 @@ void loop() {
         Serial.println(" sent to PC");
     } else {
       Serial.println("failed to connect");
+      Serial.println();
     }
   }
 
@@ -354,9 +365,8 @@ void loop() {
     if (len > 1) lastCmdFc = buf[1];
 
     printTimestamp();
-    Serial.print("C");
-    Serial.print(lastCmdId);
-    Serial.println(": Command Received");
+    Serial.print("COMMAND C");
+    Serial.println(lastCmdId);
 
     printTimestamp();
     Serial.print("[Sender] - IP ");
@@ -380,8 +390,7 @@ void loop() {
     Serial.println(cmdDescription(buf[1]));
 
     printTimestamp();
-    Serial.print("[Sender] Send Response R");
-    Serial.println(lastCmdId);
+    Serial.println("[DNP3] Send ACK to Sender");
     inc.write((const uint8_t*)"ACK", 3);
     Serial.println("[DNP3] 0x41 0x43 0x4B");
     printTimestamp();
@@ -420,7 +429,9 @@ void loop() {
     rxIndex = (rxIndex + 1) % HIST_SIZE;
 
     printTimestamp();
-    Serial.println("[DNP3] Send to Conversor Modbus");
+    Serial.print("[DNP3] Forwarding C");
+    Serial.print(lastCmdId);
+    Serial.println(" - Conversor Modbus");
     Serial1.write(buf, len);
 
     txHist[txIndex].len = len;
