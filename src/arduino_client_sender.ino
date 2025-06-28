@@ -227,7 +227,7 @@ void loop() {
         Serial.println("[MODBUS] Waiting Response");
         unsigned long waitStart = millis();
         while (client.connected() && !client.available() &&
-               millis() - waitStart < 500) {
+               millis() - waitStart < 1000) {
           delay(1);
         }
         if (client.available()) {
@@ -250,6 +250,9 @@ void loop() {
             Serial.print("[MODBUS] Meaning - ");
             Serial.println(cmdDescription(resp[1]));
           }
+        } else {
+          printTimestamp();
+          Serial.println("[MODBUS] No response");
         }
         lastSentFc = fc;
         client.stop();
@@ -290,7 +293,7 @@ void loop() {
         // Wait briefly for an ACK from the DNP3 converter before closing
         unsigned long waitStart = millis();
         while (client.connected() && !client.available() &&
-               millis() - waitStart < 500) {
+               millis() - waitStart < 1000) {
           delay(1);
         }
         if (client.available()) {
@@ -313,6 +316,9 @@ void loop() {
             Serial.print("[DNP3] Meaning - ");
             Serial.println(cmdDescription(resp[1]));
           }
+        } else {
+          printTimestamp();
+          Serial.println("[DNP3] No response");
         }
         
         lastSentFc = fc;
