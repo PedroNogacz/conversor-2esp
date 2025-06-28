@@ -294,7 +294,9 @@ void loop() {
     }
     cmdCounter++;
     lastCmdId = cmdCounter;
-    lastCmdFc = buf[1];
+    if (len > 2) {
+      lastCmdFc = buf[2];
+    }
 
     printTimestamp();
     Serial.print("COMMAND C");
@@ -311,7 +313,11 @@ void loop() {
 
     printTimestamp();
     Serial.print("[DNP3] Command Meaning - ");
-    Serial.println(cmdDescription(buf[1]));
+    if (len > 2) {
+      Serial.println(cmdDescription(buf[2]));
+    } else {
+      Serial.println("Unknown");
+    }
 
     printTimestamp();
     Serial.print("[DNP3] Forwarding C");
@@ -350,7 +356,7 @@ void loop() {
 
     cmdCounter++;
     lastCmdId = cmdCounter;
-    if (len > 1) lastCmdFc = buf[1];
+    if (len > 2) lastCmdFc = buf[2];
 
     printTimestamp();
     Serial.print("COMMAND C");
@@ -367,7 +373,11 @@ void loop() {
 
     printTimestamp();
     Serial.print("[DNP3] Command Meaning - ");
-    Serial.println(cmdDescription(buf[1]));
+    if (len > 2) {
+      Serial.println(cmdDescription(buf[2]));
+    } else {
+      Serial.println("Unknown");
+    }
 
     printTimestamp();
     Serial.println("[DNP3] Send ACK to Sender");
