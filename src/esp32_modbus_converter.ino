@@ -284,14 +284,6 @@ void loop() {
     Serial.print("COMMAND C");
     Serial.println(lastCmdId);
 
-    printTimestamp();
-    Serial.print("[Sender] - IP ");
-    Serial.println(client.remoteIP());
-
-    printTimestamp();
-    Serial.print("[Sender] Command C");
-    Serial.println(lastCmdId);
-
     Serial.print("[MODBUS] ");
     for (int i = 0; i < mbLen; i++) {
       Serial.print("0x");
