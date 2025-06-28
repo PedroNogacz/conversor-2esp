@@ -1,7 +1,6 @@
 #include <SPI.h>
 #include <Ethernet.h>
 #include <esp_system.h>
-#include <time.h>
 #include <stdio.h>
 
 // ESP32 sketch that receives Modbus frames from the Arduino sender,
@@ -155,29 +154,18 @@ Msg rxHist[HIST_SIZE];
 int txIndex = 0;
 int rxIndex = 0;
 
-// Format millis() into HH:MM:SS for logging
-// Print the timestamp prefix used for log lines. If NTP has provided the time
-// use it, otherwise fall back to millis since boot.
-static bool printedStart = false;
+// Format millis() into HH:MM:SS for logging. Timestamps are based on the
+// device's uptime so all boards can be compared without network time.
 static void printTimestamp() {
-  if (printedStart) return;
-  time_t now = time(nullptr);
+  unsigned long secs = millis() / 1000;
+  unsigned long h = (secs / 3600) % 24;
+  unsigned long m = (secs / 60) % 60;
+  unsigned long s = secs % 60;
   char ts[12];
-  if (now > 0) {
-    struct tm tm;
-    localtime_r(&now, &tm);
-    snprintf(ts, sizeof(ts), "%02d:%02d:%02d", tm.tm_hour, tm.tm_min, tm.tm_sec);
-  } else {
-    unsigned long secs = millis() / 1000;
-    unsigned long h = (secs / 3600) % 24;
-    unsigned long m = (secs / 60) % 60;
-    unsigned long s = secs % 60;
-    snprintf(ts, sizeof(ts), "%02lu:%02lu:%02lu", h, m, s);
-  }
+  snprintf(ts, sizeof(ts), "%02lu:%02lu:%02lu", h, m, s);
   Serial.print("[");
   Serial.print(ts);
   Serial.print("] ");
-  printedStart = true;
 }
 
 // Simple placeholder translation routines -----------------------------
@@ -223,7 +211,6 @@ void setup() {
   }
   Serial.print("Modbus ESP32 IP: ");
   Serial.println(Ethernet.localIP());
-  configTime(0, 0, "pool.ntp.org");
   server.begin();
   printTimestamp();
   Serial.println("Modbus ESP32 started");

@@ -1,7 +1,5 @@
 #include <SPI.h>
 #include <Ethernet.h>
-#include <EthernetUdp.h>
-#include <time.h>
 #include <avr/wdt.h>
 #include <stdio.h>
 
@@ -23,11 +21,6 @@ IPAddress dnpIp(192, 168, 1, 70);    // DNP3 ESP32 address
 
 EthernetServer server(1502);        // For responses from Modbus ESP32
 EthernetServer dnpServer(20000);    // Show any frames from DNP3 ESP32
-EthernetUDP udp;
-IPAddress ntpServer(129, 6, 15, 28); // time.nist.gov
-const unsigned int NTP_PORT = 8888;
-byte ntpBuf[48];
-unsigned long ntpOffsetMs = 0;
 
 EthernetClient client;
 int ledState = LOW;
@@ -66,46 +59,6 @@ static const char *cmdDescription(uint8_t fc) {
   }
 }
 
-static void sendNtpPacket(IPAddress &address) {
-  memset(ntpBuf, 0, sizeof(ntpBuf));
-  ntpBuf[0] = 0b11100011;
-  udp.beginPacket(address, 123);
-  udp.write(ntpBuf, sizeof(ntpBuf));
-  udp.endPacket();
-}
-
-static unsigned long getNtpTime() {
-  sendNtpPacket(ntpServer);
-  delay(1000);
-  if (udp.parsePacket()) {
-    udp.read(ntpBuf, sizeof(ntpBuf));
-    unsigned long high = word(ntpBuf[40], ntpBuf[41]);
-    unsigned long low = word(ntpBuf[42], ntpBuf[43]);
-    return ((high << 16) | low) - 2208988800UL;
-  }
-  return 0;
-}
-
-static void syncTime() {
-  udp.begin(NTP_PORT);
-  for (int i = 0; i < 5; i++) {
-    unsigned long t = getNtpTime();
-    if (t) {
-      ntpOffsetMs = t * 1000UL - millis();
-      char ts[12];
-      formatTime(currentTimeMs(), ts, sizeof(ts));
-      Serial.print("Time synced ");
-      Serial.println(ts);
-      udp.stop();
-      return;
-    }
-  }
-  Serial.println("NTP sync failed");
-  udp.stop();
-}
-static unsigned long currentTimeMs() {
-  return millis() + ntpOffsetMs;
-}
 
 // Format epoch milliseconds into HH:MM:SS for logging.
 static void formatTime(unsigned long ms, char *out, size_t outSize) {
@@ -117,15 +70,13 @@ static void formatTime(unsigned long ms, char *out, size_t outSize) {
 }
 
 // Print the current time in brackets so logs are easier to follow
-static bool printedStart = false;
+// Print the current time in brackets for easier log correlation
 static void printTimestamp() {
-  if (printedStart) return;
   char ts[12];
-  formatTime(currentTimeMs(), ts, sizeof(ts));
+  formatTime(millis(), ts, sizeof(ts));
   Serial.print("[");
   Serial.print(ts);
   Serial.print("] ");
-  printedStart = true;
 }
 
 // Initialize serial output and the Ethernet stack then start listening
@@ -143,12 +94,13 @@ void setup() {
   }
   Serial.print("Sender IP: ");
   Serial.println(Ethernet.localIP());
-  syncTime();
   server.begin();
   dnpServer.begin();
   delay(1000);
   printTimestamp();
   Serial.println("Sender started");
+  // Give network components time to settle before the first command
+  delay(10000);
 }
 
 const unsigned long HEARTBEAT_INTERVAL = 5000; // blink and message every 5 s
@@ -169,25 +121,27 @@ void loop() {
   // Check for response from Modbus ESP32
   EthernetClient inc = server.available();
   if (inc) {
-    byte buf[32];
-    int len = 0;
-    while (inc.available() && len < (int)sizeof(buf)) {
-      buf[len++] = inc.read();
-    }
-    printTimestamp();
-    Serial.println("[MODBUS] Sender received response:");
-    for (int i = 0; i < len; i++) {
-      Serial.print("0x");
-      if (buf[i] < 16) Serial.print("0");
-      Serial.print(buf[i], HEX);
-      Serial.print(" ");
-    }
-    Serial.println();
-    if (len == 3 && buf[0] == 'A' && buf[1] == 'C' && buf[2] == 'K') {
-      Serial.print("R");
-      Serial.print(lastCmdId);
-      Serial.print(": ACK for ");
-      Serial.println(cmdDescription(lastSentFc));
+    if (sendModbus) {
+      byte buf[32];
+      int len = 0;
+      while (inc.available() && len < (int)sizeof(buf)) {
+        buf[len++] = inc.read();
+      }
+      printTimestamp();
+      Serial.println("[MODBUS] Sender received response:");
+      for (int i = 0; i < len; i++) {
+        Serial.print("0x");
+        if (buf[i] < 16) Serial.print("0");
+        Serial.print(buf[i], HEX);
+        Serial.print(" ");
+      }
+      Serial.println();
+      if (len == 3 && buf[0] == 'A' && buf[1] == 'C' && buf[2] == 'K') {
+        Serial.print("R");
+        Serial.print(lastCmdId);
+        Serial.print(": ACK for ");
+        Serial.println(cmdDescription(lastSentFc));
+      }
     }
     inc.stop();
   }
@@ -195,25 +149,27 @@ void loop() {
   // Check for response from DNP3 ESP32
   EthernetClient incDnp = dnpServer.available();
   if (incDnp) {
-    byte buf[32];
-    int len = 0;
-    while (incDnp.available() && len < (int)sizeof(buf)) {
-      buf[len++] = incDnp.read();
-    }
-    printTimestamp();
-    Serial.println("[DNP3] Sender received response:");
-    for (int i = 0; i < len; i++) {
-      Serial.print("0x");
-      if (buf[i] < 16) Serial.print("0");
-      Serial.print(buf[i], HEX);
-      Serial.print(" ");
-    }
-    Serial.println();
-    if (len == 3 && buf[0] == 'A' && buf[1] == 'C' && buf[2] == 'K') {
-      Serial.print("R");
-      Serial.print(lastCmdId);
-      Serial.print(": ACK for ");
-      Serial.println(cmdDescription(lastSentFc));
+    if (!sendModbus) {
+      byte buf[32];
+      int len = 0;
+      while (incDnp.available() && len < (int)sizeof(buf)) {
+        buf[len++] = incDnp.read();
+      }
+      printTimestamp();
+      Serial.println("[DNP3] Sender received response:");
+      for (int i = 0; i < len; i++) {
+        Serial.print("0x");
+        if (buf[i] < 16) Serial.print("0");
+        Serial.print(buf[i], HEX);
+        Serial.print(" ");
+      }
+      Serial.println();
+      if (len == 3 && buf[0] == 'A' && buf[1] == 'C' && buf[2] == 'K') {
+        Serial.print("R");
+        Serial.print(lastCmdId);
+        Serial.print(": ACK for ");
+        Serial.println(cmdDescription(lastSentFc));
+      }
     }
     incDnp.stop();
   }
@@ -229,6 +185,7 @@ void loop() {
     Serial.print(lastCmdId);
     Serial.print(": ");
     Serial.println(cmdDescription(fc));
+    Serial.println();
     printTimestamp();
     if (sendModbus) {
       Serial.print("[MODBUS] Connecting for frame...");
@@ -249,6 +206,7 @@ void loop() {
         Serial.println(cmdDescription(fc));
         lastSentFc = fc;
         client.stop();
+        Serial.println();
       } else {
         Serial.println("failed");
       }
@@ -274,8 +232,38 @@ void loop() {
         Serial.print(chosenCmds[chosenIndex] + 1);
         Serial.print(" - ");
         Serial.println(cmdDescription(fc));
+
+        // Wait briefly for an ACK from the DNP3 converter before closing
+        unsigned long waitStart = millis();
+        while (client.connected() && !client.available() &&
+               millis() - waitStart < 500) {
+          delay(1);
+        }
+        if (client.available()) {
+          byte resp[16];
+          int rlen = 0;
+          while (client.available() && rlen < (int)sizeof(resp)) {
+            resp[rlen++] = client.read();
+          }
+          printTimestamp();
+          Serial.println("[DNP3] Sender received response:");
+          for (int i = 0; i < rlen; i++) {
+            Serial.print("0x");
+            if (resp[i] < 16) Serial.print("0");
+            Serial.print(resp[i], HEX);
+            Serial.print(" ");
+          }
+          Serial.println();
+          if (rlen == 3 && resp[0] == 'A' && resp[1] == 'C' && resp[2] == 'K') {
+            Serial.print("R");
+            Serial.print(lastCmdId);
+            Serial.print(": ACK for ");
+            Serial.println(cmdDescription(lastSentFc));
+          }
+        }
         lastSentFc = fc;
         client.stop();
+        Serial.println();
       } else {
         Serial.println("failed");
       }
