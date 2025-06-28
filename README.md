@@ -135,15 +135,14 @@ network faults.
 
 
 ### PC listener
-The repository includes `pc_dnp3_listener.py` which opens port 20000 and prints any
-frames received from the converter. It decodes whether the bytes represent a
-plain Modbus message or a DNP3-wrapped payload and identifies which of the two
-example commands was transmitted.
+The repository includes `pc_dnp3_listener.py` which opens port 20000 and prints
+each frame received from the converter.  The script now reports the origin IP
+address and which example command was detected.  Only the start time of the
+listener itself is printed so individual messages are easier to read.
 
 An alternate script, `pc_dnp3_gui.py`, provides a basic graphical interface for
-the same listener. It opens a Tkinter window that displays each connection's
-source IP address, the arrival time, the bytes and bits received, the detected
-protocol, and which example command was matched.
+the same listener.  It shows a short summary for every message including the
+origin address and identified command without a timestamp for each entry.
 
 ### Network setup for Windows and TP-Link modem
 
