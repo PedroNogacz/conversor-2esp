@@ -5,7 +5,9 @@
 
 // ESP32 sketch that receives Modbus frames from the Arduino sender,
 // converts them into a rudimentary DNP3 format and passes them to the
-// second ESP32. Responses travel in the reverse direction.
+// second ESP32. When DNP3 frames arrive from that board they are
+// translated back to Modbus and forwarded to the PC instead of the
+// original sender.
 // Additional debug prints log every connection attempt and when frames
 // are sent or received as requested for troubleshooting.
 //
@@ -46,6 +48,7 @@ static const char *resetReasonToString(esp_reset_reason_t reason) {
 byte mac[] = { 0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0x01 };
 IPAddress ip(192, 168, 1, 60);
 IPAddress senderIp(192, 168, 1, 50); // Arduino Uno sender address
+IPAddress pcIp(192, 168, 1, 80);    // PC address for Modbus frames
 
 const int W5500_RST = 16; // GPIO used to reset the Ethernet module
 
@@ -229,8 +232,10 @@ void loop() {
   // Data from Arduino Uno to DNP3 ESP32
   EthernetClient client = server.available();
   if (client) {
-    printTimestamp();
-    Serial.println("Connection from sender accepted");
+      printTimestamp();
+      Serial.print("Connection from sender ");
+      Serial.print(client.remoteIP());
+      Serial.println(" accepted");
     unsigned long rxStart = micros();
     byte mbBuf[256];
     int mbLen = 0;
@@ -319,7 +324,7 @@ void loop() {
     txIndex = (txIndex + 1) % HIST_SIZE;
   }
 
-  // Data from DNP3 ESP32 back to sender
+  // Data from DNP3 ESP32 that should be forwarded to the PC
   if (Serial1.available()) {
     byte inBuf[256];
     int len = 0;
@@ -380,16 +385,16 @@ void loop() {
     if (cmdId2) {
       Serial.print(" (example ");
       Serial.print(cmdId2);
-      Serial.println(") to sender");
+      Serial.println(") to PC");
     } else {
-      Serial.println(" to sender");
+      Serial.println(" to PC");
     }
-    Serial.print("Connecting to sender...");
-    if (connectWithRetry(outClient, senderIp, 1502)) {
+    Serial.print("Connecting to PC...");
+    if (connectWithRetry(outClient, pcIp, 1502)) {
       Serial.println("connected");
         unsigned long tx2Start = micros();
         outClient.write(mbBuf, outLen);
-        // let the sender know we handled the request
+        // let the PC know we handled the request
         outClient.write((const uint8_t*)"ACK", 3);
         outClient.stop();
         Serial.print("Send time us: ");
