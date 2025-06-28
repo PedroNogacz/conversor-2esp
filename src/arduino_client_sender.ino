@@ -148,27 +148,29 @@ void loop() {
   // Step 2: check for responses from the Modbus ESP32.
   EthernetClient inc = server.available();
   if (inc) {
-    if (sendModbus) {
-      byte buf[32];
-      int len = 0;
-      while (inc.available() && len < (int)sizeof(buf)) {
-        buf[len++] = inc.read();
-      }
+    byte buf[32];
+    int len = 0;
+    while (inc.available() && len < (int)sizeof(buf)) {
+      buf[len++] = inc.read();
+    }
+    printTimestamp();
+    Serial.println("[MODBUS] Sender received response:");
+    for (int i = 0; i < len; i++) {
+      Serial.print("0x");
+      if (buf[i] < 16) Serial.print("0");
+      Serial.print(buf[i], HEX);
+      Serial.print(" ");
+    }
+    Serial.println();
+    if (len == 3 && buf[0] == 'A' && buf[1] == 'C' && buf[2] == 'K') {
+      Serial.print("R");
+      Serial.print(lastCmdId);
+      Serial.print(": ACK for ");
+      Serial.println(cmdDescription(lastSentFc));
+    }
+    if (!sendModbus) {
       printTimestamp();
-      Serial.println("[MODBUS] Sender received response:");
-      for (int i = 0; i < len; i++) {
-        Serial.print("0x");
-        if (buf[i] < 16) Serial.print("0");
-        Serial.print(buf[i], HEX);
-        Serial.print(" ");
-      }
-      Serial.println();
-      if (len == 3 && buf[0] == 'A' && buf[1] == 'C' && buf[2] == 'K') {
-        Serial.print("R");
-        Serial.print(lastCmdId);
-        Serial.print(": ACK for ");
-        Serial.println(cmdDescription(lastSentFc));
-      }
+      Serial.println("[MODBUS] Note: Sender currently in DNP3 mode");
     }
     inc.stop();
   }
@@ -176,27 +178,29 @@ void loop() {
   // Step 3: check for responses from the DNP3 ESP32.
   EthernetClient incDnp = dnpServer.available();
   if (incDnp) {
-    if (!sendModbus) {
-      byte buf[32];
-      int len = 0;
-      while (incDnp.available() && len < (int)sizeof(buf)) {
-        buf[len++] = incDnp.read();
-      }
+    byte buf[32];
+    int len = 0;
+    while (incDnp.available() && len < (int)sizeof(buf)) {
+      buf[len++] = incDnp.read();
+    }
+    printTimestamp();
+    Serial.println("[DNP3] Sender received response:");
+    for (int i = 0; i < len; i++) {
+      Serial.print("0x");
+      if (buf[i] < 16) Serial.print("0");
+      Serial.print(buf[i], HEX);
+      Serial.print(" ");
+    }
+    Serial.println();
+    if (len == 3 && buf[0] == 'A' && buf[1] == 'C' && buf[2] == 'K') {
+      Serial.print("R");
+      Serial.print(lastCmdId);
+      Serial.print(": ACK for ");
+      Serial.println(cmdDescription(lastSentFc));
+    }
+    if (sendModbus) {
       printTimestamp();
-      Serial.println("[DNP3] Sender received response:");
-      for (int i = 0; i < len; i++) {
-        Serial.print("0x");
-        if (buf[i] < 16) Serial.print("0");
-        Serial.print(buf[i], HEX);
-        Serial.print(" ");
-      }
-      Serial.println();
-      if (len == 3 && buf[0] == 'A' && buf[1] == 'C' && buf[2] == 'K') {
-        Serial.print("R");
-        Serial.print(lastCmdId);
-        Serial.print(": ACK for ");
-        Serial.println(cmdDescription(lastSentFc));
-      }
+      Serial.println("[DNP3] Note: Sender currently in Modbus mode");
     }
     incDnp.stop();
   }
@@ -256,7 +260,10 @@ void loop() {
             Serial.print(" ");
           }
           Serial.println();
-          if (rlen >= 2) {
+          if (rlen == 3 && resp[0] == 'A' && resp[1] == 'C' && resp[2] == 'K') {
+            printTimestamp();
+            Serial.println("[MODBUS] Meaning - ACK");
+          } else if (rlen >= 2) {
             printTimestamp();
             Serial.print("[MODBUS] Meaning - ");
             Serial.println(cmdDescription(resp[1]));
