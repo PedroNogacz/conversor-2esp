@@ -73,6 +73,15 @@ Both ESP32 boards use UART1 for the converter link. This exposes **TX** (GPIO22)
 | second ESP32          | TX        | 22   | Modbus ESP32 RX (GPIO21) |
 | second ESP32          | RX        | 21   | Modbus ESP32 TX (GPIO22) |
 
+### Viewing debug output
+
+All diagnostic messages from both ESP32 sketches now print to the board's USB
+serial port at 115200&nbsp;baud. Open a serial monitor on the ESP32 USB
+connection to watch the startup sequence and see any errors or heartbeat
+messages. If you only see the ROM boot log repeating, the firmware likely
+failed to initialise the Ethernet module and is restarting until it succeeds.
+Check the W5500 wiring and power.
+
 ### Mode selection button
 
 The Arduino sketch reads a push button on digital pin&nbsp;2 to choose which
