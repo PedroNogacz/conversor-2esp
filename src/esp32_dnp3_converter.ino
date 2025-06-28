@@ -137,6 +137,24 @@ int dnp3ToModbus(const byte *in, int len, byte *out, int outSize) {
   return count;
 }
 
+// Read all data from *cli* until no bytes arrive for a short period.
+static int readClient(EthernetClient &cli, byte *buf, int bufSize,
+                      unsigned long timeoutMs = 50) {
+  int len = 0;
+  unsigned long last = millis();
+  while (cli.connected() && len < bufSize) {
+    while (cli.available() && len < bufSize) {
+      buf[len++] = cli.read();
+      last = millis();
+    }
+    if (millis() - last >= timeoutMs) {
+      break;
+    }
+    delay(1);
+  }
+  return len;
+}
+
 // Format millis() into HH:MM:SS for consistent logging. Each board
 // prints timestamps based solely on its own uptime.
 static void printTimestamp() {
@@ -329,15 +347,7 @@ void loop() {
   EthernetClient inc = server.available();
   if (inc) {
     byte buf[256];
-    int len = 0;
-    while (inc.connected() && len < sizeof(buf)) {
-      if (inc.available()) {
-        buf[len++] = inc.read();
-        delay(1);
-      } else {
-        delay(1);
-      }
-    }
+    int len = readClient(inc, buf, sizeof(buf));
 
     cmdCounter++;
     lastCmdId = cmdCounter;

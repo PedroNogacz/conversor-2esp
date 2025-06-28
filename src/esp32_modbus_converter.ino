@@ -203,6 +203,26 @@ int dnp3ToModbus(const byte *in, int len, byte *out, int outSize) {
   return count;
 }
 
+// Read all data from *cli* until no bytes arrive for a short period.
+// This prevents the loop from hanging when the peer keeps the
+// connection open but sends only a single frame.
+static int readClient(EthernetClient &cli, byte *buf, int bufSize,
+                      unsigned long timeoutMs = 50) {
+  int len = 0;
+  unsigned long last = millis();
+  while (cli.connected() && len < bufSize) {
+    while (cli.available() && len < bufSize) {
+      buf[len++] = cli.read();
+      last = millis();
+    }
+    if (millis() - last >= timeoutMs) {
+      break;  // assume frame complete
+    }
+    delay(1);
+  }
+  return len;
+}
+
 // Initialize Ethernet, serial ports and heartbeat timer.
 void setup() {
   // Step 1: start serial output.
@@ -252,15 +272,7 @@ void loop() {
   EthernetClient client = server.available();
   if (client) {
     byte mbBuf[256];
-    int mbLen = 0;
-    while (client.connected() && mbLen < sizeof(mbBuf)) {
-      if (client.available()) {
-        mbBuf[mbLen++] = client.read();
-        delay(1);
-      } else {
-        delay(1);
-      }
-    }
+    int mbLen = readClient(client, mbBuf, sizeof(mbBuf));
 
     cmdCounter++;
     lastCmdId = cmdCounter;
