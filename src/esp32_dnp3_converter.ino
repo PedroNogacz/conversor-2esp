@@ -57,6 +57,7 @@ static const char *resetReasonToString(esp_reset_reason_t reason) {
 
 byte mac[] = { 0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0x03 };
 IPAddress ip(192, 168, 1, 70);
+IPAddress senderIp(192, 168, 1, 50); // Arduino Uno sender address
 IPAddress pcIp(192, 168, 1, 80);
 
 const int W5500_RST = 16; // GPIO used to reset the Ethernet module
@@ -290,67 +291,67 @@ void loop() {
   // Step 3: forward any frames from the PC back to the Modbus ESP32.
   EthernetClient inc = server.available();
   if (inc) {
-      printTimestamp();
-      Serial.print("Connection from PC ");
-      Serial.print(inc.remoteIP());
-      Serial.println(" accepted");
-      unsigned long txStart = micros();
-    printTimestamp();
-    Serial.println("DNP3 ESP32 received from PC:");
     byte buf[256];
     int len = 0;
     while (inc.connected() && len < sizeof(buf)) {
       if (inc.available()) {
-        byte b = inc.read();
-        Serial.print("0x");
-        if (b < 16) Serial.print("0");
-        Serial.print(b, HEX);
-        Serial.print(" ");
-        buf[len++] = b;
-        Serial1.write(b);
-        delay(1); // prevent watchdog during prints
+        buf[len++] = inc.read();
+        delay(1);
       } else {
-        delay(1); // keep watchdog fed
+        delay(1);
       }
     }
-    // Let the PC know we received the frame
-    inc.write((const uint8_t*)"ACK", 3);
-    printTimestamp();
-    Serial.print("Forwarding to Modbus ESP32, length: ");
-    Serial.println(len);
-    Serial.println();
-    int cmdId2 = 0;
-    if (isDnp3(buf, len)) {
-      cmdId2 = identifyCmd(buf + 1, len - 2);
-    }
-    Serial.print("R");
-    Serial.print(lastCmdId);
-    Serial.print(": ");
-    Serial.print(cmdDescription(buf[1]));
-    if (cmdId2) {
-      Serial.print(" (example ");
-      Serial.print(cmdId2);
-      Serial.println(") to Modbus ESP32");
-    } else {
-      Serial.println(" to Modbus ESP32");
-    }
-    inc.stop();
-    Serial.print("Send to Modbus us: ");
-    Serial.println(micros() - txStart);
-    Serial.print("Forwarded command ");
-    Serial.print(cmdId2);
-    Serial.println(" to Modbus ESP32");
 
-    txHist[txIndex].len = len;
-    memcpy(txHist[txIndex].data, buf, len);
-    txIndex = (txIndex + 1) % HIST_SIZE;
-    Serial.print("Response R");
+    cmdCounter++;
+    lastCmdId = cmdCounter;
+    if (len > 1) lastCmdFc = buf[1];
+
+    printTimestamp();
+    Serial.print("C");
     Serial.print(lastCmdId);
-    Serial.println(" forwarded to Modbus ESP32");
+    Serial.println(": Command Received");
+
+    printTimestamp();
+    Serial.print("[Sender] - IP ");
+    Serial.println(inc.remoteIP());
+
+    printTimestamp();
+    Serial.print("[Sender] Command C");
+    Serial.println(lastCmdId);
+
+    Serial.print("[DNP3] ");
+    for (int i = 0; i < len; i++) {
+      Serial.print("0x");
+      if (buf[i] < 16) Serial.print("0");
+      Serial.print(buf[i], HEX);
+      if (i < len - 1) Serial.print(" ");
+    }
+    Serial.println();
+
+    printTimestamp();
+    Serial.print("[DNP3] Command Meaning - ");
+    Serial.println(cmdDescription(buf[1]));
+
+    printTimestamp();
+    Serial.print("[Sender] Send Response R");
+    Serial.println(lastCmdId);
+    inc.write((const uint8_t*)"ACK", 3);
+    Serial.println("[DNP3] 0x41 0x43 0x4B");
+    printTimestamp();
+    Serial.println("[DNP3] Response Meaning - ACK");
+    inc.stop();
 
     rxHist[rxIndex].len = len;
     memcpy(rxHist[rxIndex].data, buf, len);
     rxIndex = (rxIndex + 1) % HIST_SIZE;
+
+    printTimestamp();
+    Serial.println("[DNP3] Send to Conversor Modbus");
+    Serial1.write(buf, len);
+
+    txHist[txIndex].len = len;
+    memcpy(txHist[txIndex].data, buf, len);
+    txIndex = (txIndex + 1) % HIST_SIZE;
   }
   // Step 4: short delay so the watchdog timer keeps running.
   delay(1); // yield to watchdog

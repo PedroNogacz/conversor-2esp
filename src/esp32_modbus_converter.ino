@@ -251,93 +251,84 @@ void loop() {
   // Step 2: handle Modbus TCP from the Arduino sender.
   EthernetClient client = server.available();
   if (client) {
-      printTimestamp();
-      Serial.print("Connection from sender ");
-      Serial.print(client.remoteIP());
-      Serial.println(" accepted");
-    unsigned long rxStart = micros();
     byte mbBuf[256];
     int mbLen = 0;
-    printTimestamp();
-    Serial.println("Modbus ESP32 received from sender:");
     while (client.connected() && mbLen < sizeof(mbBuf)) {
       if (client.available()) {
-        byte b = client.read();
-        Serial.print("0x");
-        if (b < 16) Serial.print("0");
-        Serial.print(b, HEX);
-        Serial.print(" ");
-        mbBuf[mbLen++] = b;
-        delay(1); // avoid watchdog reset while printing
+        mbBuf[mbLen++] = client.read();
+        delay(1);
       } else {
-        delay(1); // yield to watchdog
+        delay(1);
       }
     }
-    unsigned long rxEnd = micros();
-    Serial.print("Time to receive us: ");
-    Serial.println(rxEnd - rxStart);
-    Serial.println();
-    int cmd = identifyCmd(mbBuf, mbLen);
+
     cmdCounter++;
     lastCmdId = cmdCounter;
     lastCmdFc = mbBuf[1];
+
+    printTimestamp();
     Serial.print("C");
     Serial.print(lastCmdId);
-    Serial.print(": ");
-    Serial.print(cmdDescription(mbBuf[1]));
-    if (cmd) {
-      Serial.print(" (example ");
-      Serial.print(cmd);
-      Serial.println(")");
-    } else {
-      Serial.println(" (unknown example)");
+    Serial.println(": Command Received");
+
+    printTimestamp();
+    Serial.print("[Sender] - IP ");
+    Serial.println(client.remoteIP());
+
+    printTimestamp();
+    Serial.print("[Sender] Command C");
+    Serial.println(lastCmdId);
+
+    Serial.print("[MODBUS] ");
+    for (int i = 0; i < mbLen; i++) {
+      Serial.print("0x");
+      if (mbBuf[i] < 16) Serial.print("0");
+      Serial.print(mbBuf[i], HEX);
+      if (i < mbLen - 1) Serial.print(" ");
     }
-    // Respond to the sender so the Arduino knows the frame was handled.
+    Serial.println();
+
+    printTimestamp();
+    Serial.print("[MODBUS] Command Meaning - ");
+    Serial.println(cmdDescription(mbBuf[1]));
+
+    printTimestamp();
+    Serial.print("[Sender] Send Response R");
+    Serial.println(lastCmdId);
     client.write((const uint8_t*)"ACK", 3);
+
+    Serial.println("[MODBUS] 0x41 0x43 0x4B");
+    printTimestamp();
+    Serial.println("[MODBUS] Response Meaning - ACK");
     client.stop();
 
-    // store received message history
     rxHist[rxIndex].len = mbLen;
     memcpy(rxHist[rxIndex].data, mbBuf, mbLen);
     rxIndex = (rxIndex + 1) % HIST_SIZE;
 
     byte dnpBuf[260];
-    unsigned long transStart = micros();
     int outLen = modbusToDnp3(mbBuf, mbLen, dnpBuf, sizeof(dnpBuf));
-    unsigned long transEnd = micros();
-    Serial.print("Translation us: ");
-    Serial.println(transEnd - transStart);
-    Serial.print("Translated to DNP3: ");
+
+    printTimestamp();
+    Serial.println("[MODBUS] Translated command to DNP3");
+    printTimestamp();
+    Serial.print("Command C");
+    Serial.print(lastCmdId);
+    Serial.println(" in DNP3");
+
+    Serial.print("[DNP3] ");
     for (int i = 0; i < outLen; i++) {
       Serial.print("0x");
       if (dnpBuf[i] < 16) Serial.print("0");
       Serial.print(dnpBuf[i], HEX);
-      Serial.print(" ");
-      delay(1); // feed watchdog during long prints
+      if (i < outLen - 1) Serial.print(" ");
     }
     Serial.println();
-    int cmdId = 0;
-    if (isDnp3(dnpBuf, outLen)) {
-      cmdId = identifyCmd(dnpBuf + 1, outLen - 2);
-    }
-    Serial.print("Forwarding C");
-    Serial.print(lastCmdId);
-    Serial.print(": ");
-    Serial.print(cmdDescription(mbBuf[1]));
-    if (cmdId) {
-      Serial.print(" (example ");
-      Serial.print(cmdId);
-      Serial.println(") to DNP3 ESP32");
-    } else {
-      Serial.println(" to DNP3 ESP32");
-    }
-    Serial.print("Sending to DNP3 ESP32, length: ");
-    Serial.println(outLen);
-    unsigned long txStart = micros();
+
+    printTimestamp();
+    Serial.println("[DNP3] Send to Conversor DNP3");
     Serial1.write(dnpBuf, outLen);
-    Serial.print("Send time us: ");
-    Serial.println(micros() - txStart);
-    // store history of transmitted messages
+
     txHist[txIndex].len = outLen;
     memcpy(txHist[txIndex].data, dnpBuf, outLen);
     txIndex = (txIndex + 1) % HIST_SIZE;
