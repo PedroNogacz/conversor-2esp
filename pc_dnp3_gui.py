@@ -14,14 +14,25 @@ from datetime import datetime
 import tkinter as tk
 from tkinter.scrolledtext import ScrolledText
 
-MODBUS_CMDS = [
-    bytes([0x01,0x03,0x00,0x00,0x00,0x02,0xC4,0x0B]),
-    bytes([0x01,0x04,0x00,0x01,0x00,0x01,0x31,0xCA])
-]
+# Example Modbus requests used by the firmware.  Each entry maps the raw
+# bytes to a human readable description.
+MODBUS_CMDS = {
+    bytes([0x01, 0x03, 0x00, 0x00, 0x00, 0x02, 0xC4, 0x0B]): "Read Holding Register",
+    bytes([0x01, 0x04, 0x00, 0x01, 0x00, 0x01, 0x31, 0xCA]): "Read Input Register",
+}
 
-# The converter sends one of the example Modbus frames above.  The GUI
-# compares incoming data against them so it can label which command was
-# received.
+# Mapping of Modbus function codes to command names for frames that do not
+# exactly match the examples above.
+CMD_NAMES = {
+    0x01: "Read Coil",
+    0x02: "Read Discrete Input",
+    0x03: "Read Holding Register",
+    0x04: "Read Input Register",
+    0x05: "Write Coil",
+    0x06: "Write Register",
+    0x0F: "Write Multiple Coils",
+    0x10: "Write Multiple Registers",
+}
 
 def is_dnp3(data: bytes) -> bool:
     """Return True if *data* appears to be a minimal DNP3 frame."""
@@ -35,39 +46,46 @@ def bits_str(data: bytes) -> str:
 def server_thread(msg_queue: queue.Queue):
     """Background thread that accepts connections and formats summaries."""
     # Runs forever accepting a connection from the converter, reading all
-    # bytes sent and pushing a formatted summary onto the queue for the
-    # GUI to display.
+    # bytes sent and pushing a formatted summary onto the queue for the GUI.
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    s.bind(('0.0.0.0', 20000))
+    s.bind(("0.0.0.0", 20000))
     s.listen(1)
-    start_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    msg_queue.put(f'Listener started at {start_time}\n')
+    start = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    msg_queue.put(("info", f"Listener started at {start}\n"))
     while True:
-        conn, addr = s.accept()  # wait for a connection from the ESP32
-        buf = b''
+        conn, addr = s.accept()
+        buf = b""
         while True:
             chunk = conn.recv(1024)
             if not chunk:
                 break
             buf += chunk
-        conn.sendall(b'ACK')
+        conn.sendall(b"ACK")
         conn.close()
-        # Identify whether the bytes contain the simple DNP3 frame
-        proto = 'DNP3' if is_dnp3(buf) else 'Unknown'
-        payload = buf[1:-1] if proto == 'DNP3' else buf
-        # Check which example command we received so it can be shown in
-        # the GUI.
-        match = 'unknown'
-        for i, cmd in enumerate(MODBUS_CMDS, 1):
-            if payload == cmd:
-                match = f'command {i}'
-        bits = bits_str(buf)
-        msg = (f'Origin: {addr[0]}\n'
-               f'Bytes: {buf.hex(" ")}\n'
-               f'Bits: {bits}\n'
-               f'Protocol: {proto}\n'
-               f'Command: {match}\n\n')
-        msg_queue.put(msg)
+
+        timestamp = datetime.now().strftime("%H:%M:%S")
+        if is_dnp3(buf):
+            proto = "DNP3"
+            payload = buf[1:-1]
+        else:
+            proto = "Modbus"
+            payload = buf
+
+        # Identify full command name using exact match first.
+        cmd_name = MODBUS_CMDS.get(payload)
+        if cmd_name is None and len(payload) >= 2:
+            cmd_name = CMD_NAMES.get(payload[1], "Unknown")
+        if cmd_name is None:
+            cmd_name = "Unknown"
+
+        summary = (
+            f"Time: {timestamp} From {addr[0]}\n"
+            f"Bytes: {buf.hex(' ')}\n"
+            f"Bits: {bits_str(buf)}\n"
+            f"Command: {cmd_name}\n\n"
+        )
+
+        msg_queue.put((proto, summary))
 
 def main():
     """Start the listening thread and run the Tkinter GUI."""
@@ -77,9 +95,17 @@ def main():
     th.start()
 
     root = tk.Tk()
-    root.title('PC DNP3 Listener')
-    text = ScrolledText(root, width=80, height=20)
-    text.pack(fill=tk.BOTH, expand=True)
+    root.title('Protocol Listener')
+
+    frame_dnp = tk.LabelFrame(root, text='DNP3 Messages')
+    frame_dnp.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+    text_dnp = ScrolledText(frame_dnp, width=60, height=20)
+    text_dnp.pack(fill=tk.BOTH, expand=True)
+
+    frame_mb = tk.LabelFrame(root, text='Modbus Messages')
+    frame_mb.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+    text_mb = ScrolledText(frame_mb, width=60, height=20)
+    text_mb.pack(fill=tk.BOTH, expand=True)
 
     def poll_queue():
         """Update the text widget with any queued messages."""
@@ -87,9 +113,20 @@ def main():
         # and append them to the text area.
         try:
             while True:
-                msg = q.get_nowait()
-                text.insert(tk.END, msg)
-                text.see(tk.END)
+                proto, msg = q.get_nowait()
+                if proto == 'info':
+                    for t in (text_dnp, text_mb):
+                        t.insert(tk.END, msg)
+                        t.see(tk.END)
+                    continue
+                if proto == 'DNP3':
+                    target = text_dnp
+                elif proto == 'Modbus':
+                    target = text_mb
+                else:
+                    target = text_dnp
+                target.insert(tk.END, msg)
+                target.see(tk.END)
         except queue.Empty:
             pass
         # Check again after a short delay
