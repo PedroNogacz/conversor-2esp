@@ -42,10 +42,11 @@ def main():
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     s.bind(('0.0.0.0', 20000))
     s.listen(1)
-    print('PC listener ready on port 20000')
+    start_time = datetime.now()
+    print(f'PC listener ready on port 20000 at {start_time}')
     while True:
         conn, addr = s.accept()  # wait for the converter to connect
-        print('Connection from', addr, 'at', datetime.now())
+        print(f'Connection from {addr[0]}')
         buf = b''
         # Read until the peer closes the connection
         while True:
@@ -73,7 +74,7 @@ def main():
         for i, cmd in enumerate(MODBUS_CMDS, 1):
             if payload == cmd:
                 match = f'command {i}'
-        print('Identified', match)
+        print(f'Command from {addr[0]} identified as {match}')
 
 if __name__ == '__main__':
     main()

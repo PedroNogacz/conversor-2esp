@@ -40,6 +40,8 @@ def server_thread(msg_queue: queue.Queue):
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     s.bind(('0.0.0.0', 20000))
     s.listen(1)
+    start_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    msg_queue.put(f'Listener started at {start_time}\n')
     while True:
         conn, addr = s.accept()  # wait for a connection from the ESP32
         buf = b''
@@ -60,12 +62,11 @@ def server_thread(msg_queue: queue.Queue):
             if payload == cmd:
                 match = f'command {i}'
         bits = bits_str(buf)
-        now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        msg = (f'Time: {now} from {addr[0]}\n'
+        msg = (f'Origin: {addr[0]}\n'
                f'Bytes: {buf.hex(" ")}\n'
                f'Bits: {bits}\n'
                f'Protocol: {proto}\n'
-               f'Identified: {match}\n\n')
+               f'Command: {match}\n\n')
         msg_queue.put(msg)
 
 def main():

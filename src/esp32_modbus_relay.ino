@@ -56,6 +56,9 @@ EthernetServer server(502); // Listen for Modbus TCP
 const unsigned long HEARTBEAT_INTERVAL = 5000; // 5 second LED blink
 unsigned long lastBeat = 0;
 int ledState = LOW;
+unsigned cmdCounter = 0;
+unsigned lastCmdId = 0;
+uint8_t lastCmdFc = 0;
 
 // Example Modbus commands we expect. Command 1 reads two holding
 // registers starting at address 0. Command 2 reads a single input
@@ -65,6 +68,20 @@ const byte MODBUS_CMDS[][8] = {
   { 0x01, 0x04, 0x00, 0x01, 0x00, 0x01, 0x31, 0xCA }
 };
 const int NUM_CMDS = sizeof(MODBUS_CMDS) / sizeof(MODBUS_CMDS[0]);
+
+static const char *cmdDescription(uint8_t fc) {
+  switch (fc) {
+    case 0x01: return "Read Coil";
+    case 0x02: return "Read Discrete Input";
+    case 0x03: return "Read Holding Register";
+    case 0x04: return "Read Input Register";
+    case 0x05: return "Write Coil";
+    case 0x06: return "Write Register";
+    case 0x0F: return "Write Multiple Coils";
+    case 0x10: return "Write Multiple Registers";
+    default:   return "Unknown";
+  }
+}
 
 // Return the command index (1-based) if *buf* matches one of the example
 // Modbus requests. Returns 0 when no match is found.
@@ -141,7 +158,9 @@ int rxIndex = 0;
 // Format millis() into HH:MM:SS for logging
 // Print the timestamp prefix used for log lines. If NTP has provided the time
 // use it, otherwise fall back to millis since boot.
+static bool printedStart = false;
 static void printTimestamp() {
+  if (printedStart) return;
   time_t now = time(nullptr);
   char ts[12];
   if (now > 0) {
@@ -158,6 +177,7 @@ static void printTimestamp() {
   Serial.print("[");
   Serial.print(ts);
   Serial.print("] ");
+  printedStart = true;
 }
 
 // Simple placeholder translation routines -----------------------------
@@ -205,6 +225,8 @@ void setup() {
   Serial.println(Ethernet.localIP());
   configTime(0, 0, "pool.ntp.org");
   server.begin();
+  printTimestamp();
+  Serial.println("Modbus ESP32 started");
 }
 
 // Handle traffic between the Arduino sender and the DNP3 ESP32 while
@@ -245,11 +267,21 @@ void loop() {
     Serial.println(rxEnd - rxStart);
     Serial.println();
     int cmd = identifyCmd(mbBuf, mbLen);
+    cmdCounter++;
+    lastCmdId = cmdCounter;
+    lastCmdFc = mbBuf[1];
+    Serial.print("Command ");
+    Serial.print(lastCmdId);
+    Serial.print(" C");
+    Serial.print(lastCmdId);
+    Serial.print(": ");
+    Serial.print(cmdDescription(mbBuf[1]));
     if (cmd) {
-      Serial.print("Identified Modbus command ");
-      Serial.println(cmd);
+      Serial.print(" (example ");
+      Serial.print(cmd);
+      Serial.println(")");
     } else {
-      Serial.println("Unknown Modbus command");
+      Serial.println(" (unknown example)");
     }
     // Respond to the sender so the Arduino knows the frame was handled.
     client.write((const uint8_t*)"ACK", 3);
@@ -278,16 +310,20 @@ void loop() {
     int cmdId = 0;
     if (isDnp3(dnpBuf, outLen)) {
       cmdId = identifyCmd(dnpBuf + 1, outLen - 2);
-      Serial.print("Valid DNP3 payload command ");
-      Serial.println(cmdId ? cmdId : 0);
-    } else {
-      Serial.println("Invalid DNP3 frame");
     }
-    printTimestamp();
-    Serial.println(" -> sending to DNP3 ESP32");
     Serial.print("Forwarding command ");
-    Serial.print(cmdId);
-    Serial.println(" to DNP3 ESP32");
+    Serial.print(lastCmdId);
+    Serial.print(" C");
+    Serial.print(lastCmdId);
+    Serial.print(": ");
+    Serial.print(cmdDescription(mbBuf[1]));
+    if (cmdId) {
+      Serial.print(" (example ");
+      Serial.print(cmdId);
+      Serial.println(") to DNP3 ESP32");
+    } else {
+      Serial.println(" to DNP3 ESP32");
+    }
     Serial.print("Sending to DNP3 ESP32, length: ");
     Serial.println(outLen);
     unsigned long txStart = micros();
@@ -326,12 +362,22 @@ void loop() {
       delay(1); // feed watchdog during prints
     }
     Serial.println();
+    int id = 0;
     if (isDnp3(inBuf, len)) {
-      int id = identifyCmd(inBuf + 1, len - 2);
-      Serial.print("DNP3 frame with command ");
-      Serial.println(id ? id : 0);
+      id = identifyCmd(inBuf + 1, len - 2);
+    }
+    Serial.print("Response to command ");
+    Serial.print(lastCmdId);
+    Serial.print(" R");
+    Serial.print(lastCmdId);
+    Serial.print(": ");
+    Serial.print(cmdDescription(inBuf[1]));
+    if (id) {
+      Serial.print(" (example ");
+      Serial.print(id);
+      Serial.println(") from DNP3 ESP32");
     } else {
-      Serial.println("Invalid DNP3 frame");
+      Serial.println(" from DNP3 ESP32");
     }
 
     byte mbBuf[260];
@@ -350,14 +396,17 @@ void loop() {
     }
     Serial.println();
     int cmdId2 = identifyCmd(mbBuf, outLen);
-    Serial.print("Identified Modbus command ");
-    Serial.println(cmdId2 ? cmdId2 : 0);
-    printTimestamp();
-    Serial.println(" -> forwarding to sender");
-    Serial.print("Forwarding command ");
-    Serial.print(cmdId2);
-    Serial.println(" to sender");
-    printTimestamp();
+    Serial.print("Forwarding response R");
+    Serial.print(lastCmdId);
+    Serial.print(": ");
+    Serial.print(cmdDescription(mbBuf[1]));
+    if (cmdId2) {
+      Serial.print(" (example ");
+      Serial.print(cmdId2);
+      Serial.println(") to sender");
+    } else {
+      Serial.println(" to sender");
+    }
     Serial.print("Connecting to sender...");
     if (connectWithRetry(outClient, senderIp, 1502)) {
       Serial.println("connected");
@@ -372,7 +421,9 @@ void loop() {
       txHist[txIndex].len = outLen;
       memcpy(txHist[txIndex].data, mbBuf, outLen);
       txIndex = (txIndex + 1) % HIST_SIZE;
-      Serial.println("Message forwarded");
+      Serial.print("Response R");
+      Serial.print(lastCmdId);
+      Serial.println(" forwarded");
       Serial1.write((const uint8_t*)"ACK", 3);
     } else {
       Serial.println("failed to connect");
