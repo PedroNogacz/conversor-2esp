@@ -169,15 +169,16 @@ Msg rxHist[HIST_SIZE];
 int txIndex = 0;
 int rxIndex = 0;
 
-// Format millis() into HH:MM:SS for logging. Timestamps are based on the
+// Format millis() into MM:SS.mmm for logging. Timestamps are based on the
 // device's uptime so all boards can be compared without network time.
 static void printTimestamp() {
-  unsigned long secs = millis() / 1000;
-  unsigned long h = (secs / 3600) % 24;
-  unsigned long m = (secs / 60) % 60;
-  unsigned long s = secs % 60;
-  char ts[12];
-  snprintf(ts, sizeof(ts), "%02lu:%02lu:%02lu", h, m, s);
+  unsigned long ms = millis();
+  unsigned long totalSecs = ms / 1000;
+  unsigned long m = (totalSecs / 60) % 60;
+  unsigned long s = totalSecs % 60;
+  unsigned long msRem = ms % 1000;
+  char ts[16];
+  snprintf(ts, sizeof(ts), "%02lu:%02lu.%03lu", m, s, msRem);
   Serial.print("[");
   Serial.print(ts);
   Serial.print("] ");
@@ -264,6 +265,7 @@ void loop() {
   if (millis() - lastBeat > HEARTBEAT_INTERVAL) {
     printTimestamp();
     Serial.println("Modbus ESP32 heartbeat");
+    Serial.println();
     digitalWrite(LED_BUILTIN, ledState);
     ledState = !ledState;
     lastBeat = millis();
@@ -279,9 +281,8 @@ void loop() {
     lastCmdFc = mbBuf[1];
 
     printTimestamp();
-    Serial.print("C");
-    Serial.print(lastCmdId);
-    Serial.println(": Command Received");
+    Serial.print("COMMAND C");
+    Serial.println(lastCmdId);
 
     printTimestamp();
     Serial.print("[Sender] - IP ");
@@ -305,9 +306,7 @@ void loop() {
     Serial.println(cmdDescription(mbBuf[1]));
 
     printTimestamp();
-    Serial.print("[MODBUS] [Sender] Send Response R");
-    Serial.print(lastCmdId);
-    Serial.println(" to [Sender]");
+    Serial.println("[MODBUS] Send ACK to Sender");
     client.write((const uint8_t*)"ACK", 3);
 
     Serial.println("[MODBUS] 0x41 0x43 0x4B");
@@ -347,7 +346,9 @@ void loop() {
     }
 
     printTimestamp();
-    Serial.println("[DNP3] Send to Conversor DNP3");
+    Serial.print("[DNP3] Forwarding C");
+    Serial.print(lastCmdId);
+    Serial.println(" - Conversor DNP3");
     Serial1.write(dnpBuf, outLen);
 
     txHist[txIndex].len = outLen;
@@ -363,12 +364,18 @@ void loop() {
       inBuf[len++] = Serial1.read();
       yield();
     }
-    Serial.print("Received from DNP3 ESP32, length: ");
+    printTimestamp();
+    Serial.print("COMMAND C");
+    Serial.println(lastCmdId);
+
+    printTimestamp();
+    Serial.print("[MODBUS] Received from DNP3 ESP32, length: ");
     Serial.println(len);
     rxHist[rxIndex].len = len;
     memcpy(rxHist[rxIndex].data, inBuf, len);
     rxIndex = (rxIndex + 1) % HIST_SIZE;
-    Serial.print("Modbus ESP32 received DNP3: ");
+    printTimestamp();
+    Serial.print("[MODBUS] ");
     for (int i = 0; i < len; i++) {
       Serial.print("0x");
       if (inBuf[i] < 16) Serial.print("0");
@@ -381,17 +388,9 @@ void loop() {
     if (isDnp3(inBuf, len)) {
       id = identifyCmd(inBuf + 1, len - 2);
     }
-    Serial.print("R");
-    Serial.print(lastCmdId);
-    Serial.print(": ");
-    Serial.print(cmdDescription(inBuf[1]));
-    if (id) {
-      Serial.print(" (example ");
-      Serial.print(id);
-      Serial.println(") from DNP3 ESP32");
-    } else {
-      Serial.println(" from DNP3 ESP32");
-    }
+    printTimestamp();
+    Serial.print("[MODBUS] Command Meaning - ");
+    Serial.println(cmdDescription(inBuf[1]));
 
     byte mbBuf[260];
     unsigned long trans2Start = micros();
@@ -409,17 +408,12 @@ void loop() {
     }
     Serial.println();
     int cmdId2 = identifyCmd(mbBuf, outLen);
-    Serial.print("Forwarding response R");
+    printTimestamp();
+    Serial.print("[MODBUS] Forwarding C");
     Serial.print(lastCmdId);
-    Serial.print(": ");
-    Serial.print(cmdDescription(mbBuf[1]));
-    if (cmdId2) {
-      Serial.print(" (example ");
-      Serial.print(cmdId2);
-      Serial.println(") to PC");
-    } else {
-      Serial.println(" to PC");
-    }
+    Serial.print(" - PC: IP ");
+    Serial.println(pcIp);
+
     Serial.print("Connecting to PC...");
     if (connectWithRetry(outClient, pcIp, 1502)) {
       Serial.println("connected");
@@ -434,11 +428,12 @@ void loop() {
       txHist[txIndex].len = outLen;
       memcpy(txHist[txIndex].data, mbBuf, outLen);
       txIndex = (txIndex + 1) % HIST_SIZE;
-      Serial.print("Response R");
+      Serial.print("Command C");
       Serial.print(lastCmdId);
       Serial.println(" forwarded");
     } else {
       Serial.println("failed to connect");
+      Serial.println();
     }
   }
   // Step 4: small delay so the watchdog remains satisfied.
