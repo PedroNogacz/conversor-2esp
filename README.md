@@ -87,7 +87,7 @@ Check the W5500 wiring and power.
 The Arduino sketch reads a push button on digital pin&nbsp;2 to choose which
 protocol it sends. In the unpressed state the Uno transmits Modbus frames to the
 Modbus ESP32. Pressing the button toggles to DNP3 mode and the same frames are
-wrapped in a minimal DNP3 header and sent to the DNP3 ESP32 every five seconds.
+ wrapped in a minimal DNP3 header and sent to the DNP3 ESP32 every ten seconds.
 Only two of the sample commands are used by default (one holding-register read
 and one input-register read) but the sketch can be edited to choose any pair
 from the list in `MODBUS_CMDS`.
@@ -96,6 +96,13 @@ Both ESP32 sketches now verify these messages. When either board receives a
 frame it prints which example command was recognised or notes that the bytes do
 not match the expected format. This helps confirm the converter link is working
 and that Modbus frames are preserved inside the DNP3 wrapper.
+
+Each board logs the command name based on the table in
+`tabela_modbus_dnp3.md` so the meaning of every request is shown.  Commands are
+numbered sequentially – the sender prints ``Command 1`` and each converter
+prints the same number when forwarding.  The matching reply is labelled
+``Response R1`` and so on. Only the startup time of the sender and both
+converters is printed; later messages omit timestamps.
 
 ### Translation overview
 
@@ -135,15 +142,14 @@ network faults.
 
 
 ### PC listener
-The repository includes `pc_dnp3_listener.py` which opens port 20000 and prints any
-frames received from the converter. It decodes whether the bytes represent a
-plain Modbus message or a DNP3-wrapped payload and identifies which of the two
-example commands was transmitted.
+The repository includes `pc_dnp3_listener.py` which opens port 20000 and prints
+each frame received from the converter.  The script now reports the origin IP
+address and which example command was detected.  Only the start time of the
+listener itself is printed so individual messages are easier to read.
 
 An alternate script, `pc_dnp3_gui.py`, provides a basic graphical interface for
-the same listener. It opens a Tkinter window that displays each connection's
-source IP address, the arrival time, the bytes and bits received, the detected
-protocol, and which example command was matched.
+the same listener.  It shows a short summary for every message including the
+origin address and identified command without a timestamp for each entry.
 
 ### Network setup for Windows and TP-Link modem
 

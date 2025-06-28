@@ -48,6 +48,23 @@ const int NUM_CMDS = sizeof(MODBUS_CMDS) / sizeof(MODBUS_CMDS[0]);
 const int ACTIVE_CMDS = 2;
 int chosenCmds[ACTIVE_CMDS] = {0, 1};
 int chosenIndex = 0;
+uint8_t lastSentFc = 0;
+unsigned lastCmdId = 0;
+unsigned cmdCounter = 0;
+
+static const char *cmdDescription(uint8_t fc) {
+  switch (fc) {
+    case 0x01: return "Read Coil";
+    case 0x02: return "Read Discrete Input";
+    case 0x03: return "Read Holding Register";
+    case 0x04: return "Read Input Register";
+    case 0x05: return "Write Coil";
+    case 0x06: return "Write Register";
+    case 0x0F: return "Write Multiple Coils";
+    case 0x10: return "Write Multiple Registers";
+    default:   return "Unknown";
+  }
+}
 
 static void sendNtpPacket(IPAddress &address) {
   memset(ntpBuf, 0, sizeof(ntpBuf));
@@ -100,12 +117,15 @@ static void formatTime(unsigned long ms, char *out, size_t outSize) {
 }
 
 // Print the current time in brackets so logs are easier to follow
+static bool printedStart = false;
 static void printTimestamp() {
+  if (printedStart) return;
   char ts[12];
   formatTime(currentTimeMs(), ts, sizeof(ts));
   Serial.print("[");
   Serial.print(ts);
   Serial.print("] ");
+  printedStart = true;
 }
 
 // Initialize serial output and the Ethernet stack then start listening
@@ -127,6 +147,8 @@ void setup() {
   server.begin();
   dnpServer.begin();
   delay(1000);
+  printTimestamp();
+  Serial.println("Sender started");
 }
 
 const unsigned long HEARTBEAT_INTERVAL = 5000; // blink and message every 5 s
@@ -162,8 +184,12 @@ void loop() {
     }
     Serial.println();
     if (len == 3 && buf[0] == 'A' && buf[1] == 'C' && buf[2] == 'K') {
-      printTimestamp();
-      Serial.println("Converter ACK");
+      Serial.print("Response to command ");
+      Serial.print(lastCmdId);
+      Serial.print(" R");
+      Serial.print(lastCmdId);
+      Serial.print(": ACK for ");
+      Serial.println(cmdDescription(lastSentFc));
     }
     inc.stop();
   }
@@ -186,8 +212,12 @@ void loop() {
     }
     Serial.println();
     if (len == 3 && buf[0] == 'A' && buf[1] == 'C' && buf[2] == 'K') {
-      printTimestamp();
-      Serial.println("Converter ACK");
+      Serial.print("Response to command ");
+      Serial.print(lastCmdId);
+      Serial.print(" R");
+      Serial.print(lastCmdId);
+      Serial.print(": ACK for ");
+      Serial.println(cmdDescription(lastSentFc));
     }
     incDnp.stop();
   }
@@ -196,6 +226,15 @@ void loop() {
   // Periodically send frame based on selected mode
   if (millis() - lastSend > sendInterval) {
     const byte *frame = MODBUS_CMDS[chosenCmds[chosenIndex]];
+    uint8_t fc = frame[1];
+    cmdCounter++;
+    lastCmdId = cmdCounter;
+    Serial.print("Command ");
+    Serial.print(lastCmdId);
+    Serial.print(" C");
+    Serial.print(lastCmdId);
+    Serial.print(": ");
+    Serial.println(cmdDescription(fc));
     printTimestamp();
     if (sendModbus) {
       Serial.print("[MODBUS] Connecting for frame...");
@@ -211,7 +250,10 @@ void loop() {
         Serial.println();
         client.write(frame, 8);
         Serial.print("[MODBUS] Sent frame ");
-        Serial.println(chosenCmds[chosenIndex] + 1);
+        Serial.print(chosenCmds[chosenIndex] + 1);
+        Serial.print(" - ");
+        Serial.println(cmdDescription(fc));
+        lastSentFc = fc;
         client.stop();
       } else {
         Serial.println("failed");
@@ -235,7 +277,10 @@ void loop() {
         Serial.println();
         client.write(dnp, sizeof(dnp));
         Serial.print("[DNP3] Sent frame ");
-        Serial.println(chosenCmds[chosenIndex] + 1);
+        Serial.print(chosenCmds[chosenIndex] + 1);
+        Serial.print(" - ");
+        Serial.println(cmdDescription(fc));
+        lastSentFc = fc;
         client.stop();
       } else {
         Serial.println("failed");

@@ -55,6 +55,9 @@ EthernetClient outClient;
 const unsigned long HEARTBEAT_INTERVAL = 5000; // 5 second LED blink
 unsigned long lastBeat = 0;
 int ledState = LOW;
+unsigned cmdCounter = 0;
+unsigned lastCmdId = 0;
+uint8_t lastCmdFc = 0;
 
 // Expected Modbus request patterns, shared with the Modbus ESP32.
 const byte MODBUS_CMDS[][8] = {
@@ -62,6 +65,20 @@ const byte MODBUS_CMDS[][8] = {
   { 0x01, 0x04, 0x00, 0x01, 0x00, 0x01, 0x31, 0xCA }
 };
 const int NUM_CMDS = sizeof(MODBUS_CMDS) / sizeof(MODBUS_CMDS[0]);
+
+static const char *cmdDescription(uint8_t fc) {
+  switch (fc) {
+    case 0x01: return "Read Coil";
+    case 0x02: return "Read Discrete Input";
+    case 0x03: return "Read Holding Register";
+    case 0x04: return "Read Input Register";
+    case 0x05: return "Write Coil";
+    case 0x06: return "Write Register";
+    case 0x0F: return "Write Multiple Coils";
+    case 0x10: return "Write Multiple Registers";
+    default:   return "Unknown";
+  }
+}
 
 static int identifyCmd(const byte *buf, int len) {
   for (int i = 0; i < NUM_CMDS; i++) {
@@ -90,7 +107,9 @@ int rxIndex = 0;
 // Format millis() into HH:MM:SS for consistent logging
 // Format the current time into HH:MM:SS. Falls back to millis when NTP has not
 // updated yet.
+static bool printedStart = false;
 static void printTimestamp() {
+  if (printedStart) return;
   time_t now = time(nullptr);
   char ts[12];
   if (now > 0) {
@@ -107,6 +126,7 @@ static void printTimestamp() {
   Serial.print("[");
   Serial.print(ts);
   Serial.print("] ");
+  printedStart = true;
 }
 
 // Attempt to bring up the Ethernet interface while keeping the watchdog fed.
@@ -176,6 +196,8 @@ void setup() {
   Serial.println(Ethernet.localIP());
   configTime(0, 0, "pool.ntp.org");
   server.begin();
+  printTimestamp();
+  Serial.println("DNP3 ESP32 started");
 }
 
 // Main loop: forwards data between the Modbus ESP32 and the PC while
@@ -220,16 +242,23 @@ void loop() {
     int cmdId = 0;
     if (isDnp3(buf, len)) {
       cmdId = identifyCmd(buf + 1, len - 2);
-      Serial.print("Valid DNP3 payload command ");
-      Serial.println(cmdId ? cmdId : 0);
-    } else {
-      Serial.println("Invalid DNP3 frame");
     }
-    printTimestamp();
-    Serial.println(" -> sending to PC");
-    Serial.print("Forwarding command ");
-    Serial.print(cmdId);
-    Serial.println(" to PC");
+    cmdCounter++;
+    lastCmdId = cmdCounter;
+    lastCmdFc = buf[1];
+    Serial.print("Command ");
+    Serial.print(lastCmdId);
+    Serial.print(" C");
+    Serial.print(lastCmdId);
+    Serial.print(": forwarding ");
+    Serial.print(cmdDescription(buf[1]));
+    if (cmdId) {
+      Serial.print(" (example ");
+      Serial.print(cmdId);
+      Serial.println(") to PC");
+    } else {
+      Serial.println(" to PC");
+    }
     Serial.println("DNP3 ESP32 notifying: attempting to connect to PC");
     printTimestamp();
     Serial.print("Connecting to PC...");
@@ -246,7 +275,9 @@ void loop() {
         txHist[txIndex].len = len;
         memcpy(txHist[txIndex].data, buf, len);
         txIndex = (txIndex + 1) % HIST_SIZE;
-        Serial.println("Message sent to PC");
+        Serial.print("Command ");
+        Serial.print(lastCmdId);
+        Serial.println(" sent to PC");
         Serial1.write((const uint8_t*)"ACK", 3);
     } else {
       Serial.println("failed to connect");
@@ -286,10 +317,19 @@ void loop() {
     int cmdId2 = 0;
     if (isDnp3(buf, len)) {
       cmdId2 = identifyCmd(buf + 1, len - 2);
-      Serial.print("Valid DNP3 payload command ");
-      Serial.println(cmdId2 ? cmdId2 : 0);
+    }
+    Serial.print("Response to command ");
+    Serial.print(lastCmdId);
+    Serial.print(" R");
+    Serial.print(lastCmdId);
+    Serial.print(": ");
+    Serial.print(cmdDescription(buf[1]));
+    if (cmdId2) {
+      Serial.print(" (example ");
+      Serial.print(cmdId2);
+      Serial.println(") to Modbus ESP32");
     } else {
-      Serial.println("Invalid DNP3 frame");
+      Serial.println(" to Modbus ESP32");
     }
     inc.stop();
     Serial.print("Send to Modbus us: ");
@@ -301,7 +341,9 @@ void loop() {
     txHist[txIndex].len = len;
     memcpy(txHist[txIndex].data, buf, len);
     txIndex = (txIndex + 1) % HIST_SIZE;
-    Serial.println("Message forwarded to Modbus ESP32");
+    Serial.print("Response R");
+    Serial.print(lastCmdId);
+    Serial.println(" forwarded to Modbus ESP32");
 
     rxHist[rxIndex].len = len;
     memcpy(rxHist[rxIndex].data, buf, len);
