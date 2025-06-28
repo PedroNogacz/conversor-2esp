@@ -208,12 +208,11 @@ void loop() {
     uint8_t fc = frame[1];
     cmdCounter++;
     lastCmdId = cmdCounter;
+    printTimestamp();
     Serial.print("C");
     Serial.print(lastCmdId);
     Serial.print(": ");
     Serial.println(cmdDescription(fc));
-    Serial.println();
-    printTimestamp();
     if (sendModbus) {
       Serial.println("[MODBUS] Connecting for frame...");
       if (client.connect(modbusIp, 502)) { // Modbus TCP port
@@ -323,7 +322,14 @@ void loop() {
             Serial.print(" ");
           }
           Serial.println();
-          if (rlen >= 2) {
+          if (rlen == 3 && resp[0] == 'A' && resp[1] == 'C' && resp[2] == 'K') {
+            printTimestamp();
+            Serial.println("[DNP3] Meaning - ACK");
+          } else if (rlen >= 4 && resp[0] == 0x05 && resp[rlen - 1] == 0x16) {
+            printTimestamp();
+            Serial.print("[DNP3] Meaning - ");
+            Serial.println(cmdDescription(resp[2]));
+          } else if (rlen >= 2) {
             printTimestamp();
             Serial.print("[DNP3] Meaning - ");
             Serial.println(cmdDescription(resp[1]));
