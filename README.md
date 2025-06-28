@@ -97,6 +97,11 @@ frame it prints which example command was recognised or notes that the bytes do
 not match the expected format. This helps confirm the converter link is working
 and that Modbus frames are preserved inside the DNP3 wrapper.
 
+Each board logs the command name based on the table in
+`tabela_modbus_dnp3.md` so the meaning of every request is shown.  Only the
+startup time of the sender and both converters is printed; later messages omit
+timestamps.
+
 ### Translation overview
 
 The Modbus ESP32 includes simple routines that wrap Modbus frames inside a

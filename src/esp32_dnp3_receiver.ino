@@ -63,6 +63,20 @@ const byte MODBUS_CMDS[][8] = {
 };
 const int NUM_CMDS = sizeof(MODBUS_CMDS) / sizeof(MODBUS_CMDS[0]);
 
+static const char *cmdDescription(uint8_t fc) {
+  switch (fc) {
+    case 0x01: return "Read Coil";
+    case 0x02: return "Read Discrete Input";
+    case 0x03: return "Read Holding Register";
+    case 0x04: return "Read Input Register";
+    case 0x05: return "Write Coil";
+    case 0x06: return "Write Register";
+    case 0x0F: return "Write Multiple Coils";
+    case 0x10: return "Write Multiple Registers";
+    default:   return "Unknown";
+  }
+}
+
 static int identifyCmd(const byte *buf, int len) {
   for (int i = 0; i < NUM_CMDS; i++) {
     if (len == 8 && memcmp(buf, MODBUS_CMDS[i], 8) == 0) {
@@ -90,7 +104,9 @@ int rxIndex = 0;
 // Format millis() into HH:MM:SS for consistent logging
 // Format the current time into HH:MM:SS. Falls back to millis when NTP has not
 // updated yet.
+static bool printedStart = false;
 static void printTimestamp() {
+  if (printedStart) return;
   time_t now = time(nullptr);
   char ts[12];
   if (now > 0) {
@@ -107,6 +123,7 @@ static void printTimestamp() {
   Serial.print("[");
   Serial.print(ts);
   Serial.print("] ");
+  printedStart = true;
 }
 
 // Attempt to bring up the Ethernet interface while keeping the watchdog fed.
@@ -176,6 +193,8 @@ void setup() {
   Serial.println(Ethernet.localIP());
   configTime(0, 0, "pool.ntp.org");
   server.begin();
+  printTimestamp();
+  Serial.println("DNP3 ESP32 started");
 }
 
 // Main loop: forwards data between the Modbus ESP32 and the PC while
@@ -220,16 +239,16 @@ void loop() {
     int cmdId = 0;
     if (isDnp3(buf, len)) {
       cmdId = identifyCmd(buf + 1, len - 2);
-      Serial.print("Valid DNP3 payload command ");
-      Serial.println(cmdId ? cmdId : 0);
-    } else {
-      Serial.println("Invalid DNP3 frame");
     }
-    printTimestamp();
-    Serial.println(" -> sending to PC");
-    Serial.print("Forwarding command ");
-    Serial.print(cmdId);
-    Serial.println(" to PC");
+    Serial.print("Forwarding ");
+    Serial.print(cmdDescription(buf[1]));
+    if (cmdId) {
+      Serial.print(" (example ");
+      Serial.print(cmdId);
+      Serial.println(") to PC");
+    } else {
+      Serial.println(" to PC");
+    }
     Serial.println("DNP3 ESP32 notifying: attempting to connect to PC");
     printTimestamp();
     Serial.print("Connecting to PC...");
@@ -286,10 +305,15 @@ void loop() {
     int cmdId2 = 0;
     if (isDnp3(buf, len)) {
       cmdId2 = identifyCmd(buf + 1, len - 2);
-      Serial.print("Valid DNP3 payload command ");
-      Serial.println(cmdId2 ? cmdId2 : 0);
+    }
+    Serial.print("Forwarded ");
+    Serial.print(cmdDescription(buf[1]));
+    if (cmdId2) {
+      Serial.print(" (example ");
+      Serial.print(cmdId2);
+      Serial.println(") to Modbus ESP32");
     } else {
-      Serial.println("Invalid DNP3 frame");
+      Serial.println(" to Modbus ESP32");
     }
     inc.stop();
     Serial.print("Send to Modbus us: ");
