@@ -271,10 +271,6 @@ void loop() {
       len -= 3;
     }
     printTimestamp();
-    Serial.print("COMMAND C");
-    Serial.println(lastCmdId);
-
-    printTimestamp();
     Serial.print("[DNP3] Received from Modbus ESP32, length: ");
     Serial.println(len);
     unsigned long rxEnd = micros();
@@ -302,14 +298,6 @@ void loop() {
 
     printTimestamp();
     Serial.print("COMMAND C");
-    Serial.println(lastCmdId);
-
-    printTimestamp();
-    Serial.print("[Sender] - IP ");
-    Serial.println(modbusIp);
-
-    printTimestamp();
-    Serial.print("[Sender] Command C");
     Serial.println(lastCmdId);
 
     Serial.print("[DNP3] ");
@@ -366,14 +354,6 @@ void loop() {
 
     printTimestamp();
     Serial.print("COMMAND C");
-    Serial.println(lastCmdId);
-
-    printTimestamp();
-    Serial.print("[Sender] - IP ");
-    Serial.println(inc.remoteIP());
-
-    printTimestamp();
-    Serial.print("[Sender] Command C");
     Serial.println(lastCmdId);
 
     Serial.print("[DNP3] ");
