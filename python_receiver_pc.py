@@ -37,15 +37,6 @@ MODBUS_CMDS = {
     bytes([0x01,0x10,0x00,0x01,0x00,0x02,0x04,0x00,0x0A,0x00,0x14,0x12,0x6E]): "Write Multiple Registers",
 }
 
-# Map Modbus function codes to the example command index used by the
-# firmware. Any frame with one of these codes is considered recognised.
-MODBUS_CMD_INDEX = {
-    0x03: 1,
-    0x04: 2,
-    0x05: 3,
-    0x02: 4,
-    0x10: 5,
-}
 
 DNP3_CMDS = {
     bytes([0xC0,0x01,0x01,0x02,0x00,0x00]): "Read Binary Inputs",
@@ -54,8 +45,6 @@ DNP3_CMDS = {
     bytes([0xC1,0x05,0x29,0x01,0x00,0x64,0x00,0x00]): "Operate Analog Output",
 }
 
-# Enumerate the DNP3 examples so their index matches the converter tables.
-DNP3_CMD_LIST = list(DNP3_CMDS.keys())
 
 # Mapping of Modbus function codes to command names for frames that do
 # not exactly match the examples above.
@@ -85,19 +74,6 @@ def bits_str(data: bytes) -> str:
     return " ".join(f"{b:08b}" for b in data)
 
 
-def modbus_index(payload: bytes) -> int:
-    """Return the example command index for a Modbus frame."""
-    if len(payload) >= 2:
-        return MODBUS_CMD_INDEX.get(payload[1], 0)
-    return 0
-
-
-def dnp3_index(payload: bytes) -> int:
-    """Return the example command index for a DNP3 frame."""
-    for i, pat in enumerate(DNP3_CMD_LIST, start=1):
-        if payload == pat:
-            return i
-    return 0
 
 
 def server_thread(port: int, proto: str, msg_queue: queue.Queue) -> None:
@@ -139,26 +115,22 @@ def server_thread(port: int, proto: str, msg_queue: queue.Queue) -> None:
         else:  # Modbus port
             payload = buf
 
-        # Step 7: determine which example command this matches.
+        # Step 7: look up a friendly name for the command.
         if proto == "DNP3":
-            cmd_id = dnp3_index(payload)
             cmd_name = DNP3_CMDS.get(payload)
         else:
-            cmd_id = modbus_index(payload)
             cmd_name = MODBUS_CMDS.get(payload)
         if cmd_name is None and len(payload) >= 2:
             cmd_name = CMD_NAMES.get(payload[1], "Unknown")
         if cmd_name is None:
             cmd_name = "Unknown"
-        cmd_label = str(cmd_id) if cmd_id else "Unknown"
 
         # Step 8: build a message that will appear in the GUI and console.
         summary = (
             f"Time: {timestamp} From {addr[0]} Port {port}\n"
             f"Bytes: {buf.hex(' ')}\n"
             f"Bits: {bits_str(buf)}\n"
-            f"Command: {cmd_name}\n"
-            f"Cmd ID: {cmd_label}\n\n"
+            f"Command: {cmd_name}\n\n"
         )
 
         msg_queue.put((proto, summary))  # send to GUI

@@ -155,9 +155,8 @@ Run `python_receiver_pc.py` on the PC to capture traffic from both ESP32
 converters.  The script listens on **port&nbsp;20000** for DNP3 frames from the
 DNP3 ESP32 and **port&nbsp;1502** for Modbus frames from the Modbus ESP32.  A
 Tkinter window displays each message in separate panes while the console prints
-the same information. The decoded command name is shown along with the
-corresponding example index so you can verify exactly which request was
-recognized.
+the same information. The decoded command name is shown so you can verify which
+request was recognized.
 
 #### Requirements
 
