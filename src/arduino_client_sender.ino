@@ -42,19 +42,29 @@ int ledState = LOW;
 bool sendModbus = true;           // true -> sending Modbus, false -> sending DNP3
 int cycleCount = 0;               // how many frames have been sent in current mode
 
-// Five example Modbus requests used for both protocols
-const byte MODBUS_CMDS[][8] = {
-  { 0x01, 0x03, 0x00, 0x00, 0x00, 0x02, 0xC4, 0x0B }, // read 2 holding regs @0
-  { 0x01, 0x04, 0x00, 0x01, 0x00, 0x01, 0x31, 0xCA }, // read 1 input reg  @1
-  { 0x01, 0x03, 0x00, 0x10, 0x00, 0x01, 0x85, 0xCF }, // read 1 holding reg @16
-  { 0x01, 0x04, 0x00, 0x20, 0x00, 0x01, 0x30, 0x00 }, // read 1 input reg  @32
-  { 0x01, 0x03, 0x00, 0x30, 0x00, 0x02, 0xC4, 0x04 }  // read 2 holding regs @48
+// Example Modbus requests with precomputed CRC values
+static const byte MB_CMD_READ_HOLD[]        = {0x01,0x03,0x00,0x0A,0x00,0x02,0xE4,0x09};
+static const byte MB_CMD_READ_INPUT_REG[]   = {0x01,0x04,0x00,0x0A,0x00,0x02,0x51,0xC9};
+static const byte MB_CMD_WRITE_COIL[]       = {0x01,0x05,0x00,0x13,0xFF,0x00,0x7D,0xFF};
+static const byte MB_CMD_READ_INPUT_STATUS[]= {0x01,0x02,0x00,0x00,0x00,0x08,0x79,0xCC};
+static const byte MB_CMD_WRITE_MULTI_REGS[] = {0x01,0x10,0x00,0x01,0x00,0x02,0x04,0x00,0x0A,0x00,0x14,0x12,0x6E};
+
+struct CmdDef {
+  const byte *data;
+  int len;
+};
+
+static const CmdDef MODBUS_CMDS[] = {
+  {MB_CMD_READ_HOLD,        sizeof(MB_CMD_READ_HOLD)},
+  {MB_CMD_READ_INPUT_REG,   sizeof(MB_CMD_READ_INPUT_REG)},
+  {MB_CMD_WRITE_COIL,       sizeof(MB_CMD_WRITE_COIL)},
+  {MB_CMD_READ_INPUT_STATUS,sizeof(MB_CMD_READ_INPUT_STATUS)},
+  {MB_CMD_WRITE_MULTI_REGS, sizeof(MB_CMD_WRITE_MULTI_REGS)}
 };
 const int NUM_CMDS = sizeof(MODBUS_CMDS) / sizeof(MODBUS_CMDS[0]);
-// Only the first two commands are used in this example. Change the
-// ACTIVE_CMDS array to choose different ones.
-const int ACTIVE_CMDS = 2;
-int chosenCmds[ACTIVE_CMDS] = {0, 1};
+// Use all commands in sequence
+const int ACTIVE_CMDS = NUM_CMDS;
+int chosenCmds[ACTIVE_CMDS] = {0, 1, 2, 3, 4};
 int chosenIndex = 0;
 uint8_t lastSentFc = 0;
 unsigned lastCmdId = 0;
@@ -208,7 +218,9 @@ void loop() {
 
   // Step 4: periodically send the next command in the chosen protocol.
   if (millis() - lastSend > sendInterval) {
-    const byte *frame = MODBUS_CMDS[chosenCmds[chosenIndex]];
+    const CmdDef &cmd = MODBUS_CMDS[chosenCmds[chosenIndex]];
+    const byte *frame = cmd.data;
+    int frameLen = cmd.len;
     uint8_t fc = frame[1];
     cmdCounter++;
     lastCmdId = cmdCounter;
@@ -225,14 +237,14 @@ void loop() {
         Serial.println(modbusIp);
         printTimestamp();
         Serial.print("[MODBUS] Sending: ");
-        for (int i = 0; i < 8; i++) {
+        for (int i = 0; i < frameLen; i++) {
           Serial.print("0x");
           if (frame[i] < 16) Serial.print("0");
           Serial.print(frame[i], HEX);
           Serial.print(" ");
         }
         Serial.println();
-        client.write(frame, 8);
+        client.write(frame, frameLen);
         printTimestamp();
         Serial.print("[MODBUS] Sent frame ");
         Serial.print(chosenCmds[chosenIndex] + 1);
@@ -284,13 +296,14 @@ void loop() {
         printTimestamp();
         Serial.print("[DNP3] Connected IP ");
         Serial.println(dnpIp);
-        byte dnp[8 + 2];
+        byte dnp[32];
         dnp[0] = 0x05;
-        memcpy(dnp + 1, frame, 8);
-        dnp[9] = 0x16;
+        memcpy(dnp + 1, frame, frameLen);
+        dnp[frameLen + 1] = 0x16;
+        int dnpLen = frameLen + 2;
         printTimestamp();
         Serial.print("[DNP3] Sending: ");
-        for (int i = 0; i < 10; i++) {
+        for (int i = 0; i < dnpLen; i++) {
           byte b = dnp[i];
           Serial.print("0x");
           if (b < 16) Serial.print("0");
@@ -298,7 +311,7 @@ void loop() {
           Serial.print(" ");
         }
         Serial.println();
-        client.write(dnp, sizeof(dnp));
+        client.write(dnp, dnpLen);
         printTimestamp();
         Serial.print("[DNP3] Sent frame ");
         Serial.print(chosenCmds[chosenIndex] + 1);
