@@ -111,9 +111,14 @@ converters is printed; later messages omit timestamps.
 
 The Modbus ESP32 includes simple routines that wrap Modbus frames inside a
 DNP3-style header before sending them to the second ESP32. Data received in this
-format is unwrapped back to Modbus before being forwarded to the sender. These
-examples are placeholders—replace them with real protocol handlers for a
-production system.
+format is unwrapped back to Modbus before being forwarded to the sender. Earlier
+revisions only recognised a handful of example requests. The Modbus converter
+now identifies commands purely by their Modbus function code and returns the
+sample response from the command table, so any request using those function
+codes will receive the documented reply. The DNP3 converter continues to match
+its example commands byte-for-byte, keeping the DNP3 protocol independent of the
+Modbus logic. These sketches remain simplified examples rather than a complete
+implementation.
 
 Earlier versions exchanged a short ``ACK`` between the two ESP32 boards
 after forwarding a frame. This internal handshake has been removed so
@@ -150,7 +155,9 @@ Run `python_receiver_pc.py` on the PC to capture traffic from both ESP32
 converters.  The script listens on **port&nbsp;20000** for DNP3 frames from the
 DNP3 ESP32 and **port&nbsp;1502** for Modbus frames from the Modbus ESP32.  A
 Tkinter window displays each message in separate panes while the console prints
-the same information.
+the same information. The decoded command name is shown along with the
+corresponding example index so you can verify exactly which request was
+recognized.
 
 #### Requirements
 
