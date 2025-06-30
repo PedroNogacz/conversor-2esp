@@ -90,9 +90,8 @@ Modbus ESP32. Pressing the button toggles to DNP3 mode and the same frames are
 wrapped in a minimal DNP3 header and sent to the DNP3 ESP32 every ten seconds.
 After startup the sender waits ten seconds before transmitting its first command
 so the network can stabilise.
-Only two of the sample commands are used by default (one holding-register read
-and one input-register read) but the sketch can be edited to choose any pair
-from the list in `MODBUS_CMDS`.
+All of the example commands listed in `MODBUS_CMDS` are now sent one after the
+other. Edit that array to change the order or remove commands as needed.
 
 Both ESP32 sketches now verify these messages. When either board receives a
 frame it prints which example command was recognised or notes that the bytes do
