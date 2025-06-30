@@ -119,6 +119,10 @@ static const char *cmdDescription(uint8_t fc) {
   }
 }
 
+// Identify which of the example Modbus commands was wrapped inside the
+// incoming DNP3 frame. This version compares the full request bytes so the
+// exact command is recognised, keeping the DNP3 handling separate from the
+// Modbus-only logic used in the other converter.
 static int identifyCmd(const byte *buf, int len) {
   for (int i = 0; i < NUM_CMDS; i++) {
     if (len == MODBUS_CMDS[i].len &&
@@ -316,10 +320,17 @@ void loop() {
     }
     Serial.println();
     int cmdId = 0;
-    if (isDnp3(buf, len)) {
-      cmdId = identifyCmd(buf + 1, len - 2);
-    }
-    cmdCounter++;
+  if (isDnp3(buf, len)) {
+    cmdId = identifyCmd(buf + 1, len - 2);
+  }
+  printTimestamp();
+  if (cmdId) {
+    Serial.print("[DNP3] Matched example #");
+    Serial.println(cmdId);
+  } else {
+    Serial.println("[DNP3] Command not in example table");
+  }
+  cmdCounter++;
     lastCmdId = cmdCounter;
     if (len > 2) {
       lastCmdFc = buf[2];
@@ -437,6 +448,7 @@ void loop() {
 
     byte mbBuf[260];
     int modLen = dnp3ToModbus(buf, len, mbBuf, sizeof(mbBuf));
+    int cmdId2 = identifyCmd(mbBuf, modLen);
 
     printTimestamp();
     Serial.println("[DNP3] Translated command to Modbus");
@@ -460,6 +472,13 @@ void loop() {
       Serial.println(cmdDescription(mbBuf[1]));
     } else {
       Serial.println("Unknown");
+    }
+    printTimestamp();
+    if (cmdId2) {
+      Serial.print("[MODBUS] Matched example #");
+      Serial.println(cmdId2);
+    } else {
+      Serial.println("[MODBUS] Command not in example table");
     }
 
     rxHist[rxIndex].len = len;

@@ -127,14 +127,21 @@ static const char *cmdDescription(uint8_t fc) {
 
 // Return the command index (1-based) if *buf* matches one of the example
 // Modbus requests. Returns 0 when no match is found.
+// Identify the command based only on the Modbus function code so requests that
+// vary in register address or length are still recognised.  Returns an index in
+// the table above or 0 when the function is not handled.
 static int identifyCmd(const byte *buf, int len) {
-  for (int i = 0; i < NUM_CMDS; i++) {
-    if (len == MODBUS_CMDS[i].len &&
-        memcmp(buf, MODBUS_CMDS[i].data, MODBUS_CMDS[i].len) == 0) {
-      return i + 1;
-    }
+  if (len < 2) {
+    return 0;
   }
-  return 0;
+  switch (buf[1]) {
+    case 0x03: return 1; // Read Holding Registers
+    case 0x04: return 2; // Read Input Registers
+    case 0x05: return 3; // Write Single Coil
+    case 0x02: return 4; // Read Input Status
+    case 0x10: return 5; // Write Multiple Registers
+    default:   return 0;
+  }
 }
 
 // Check for the minimal DNP3 framing used in these examples.
@@ -327,6 +334,13 @@ void loop() {
     Serial.println(cmdDescription(mbBuf[1]));
 
     int cmdId = identifyCmd(mbBuf, mbLen);
+    printTimestamp();
+    if (cmdId) {
+      Serial.print("[MODBUS] Matched example #");
+      Serial.println(cmdId);
+    } else {
+      Serial.println("[MODBUS] Command not in example table");
+    }
     const byte *resp = ACK_BYTES;
     int respLen = ACK_LEN;
     if (cmdId == 1) {
@@ -442,6 +456,13 @@ void loop() {
       id = identifyCmd(inBuf + 1, len - 2);
     }
     printTimestamp();
+    if (id) {
+      Serial.print("[MODBUS] Matched example #");
+      Serial.println(id);
+    } else {
+      Serial.println("[MODBUS] Response not in example table");
+    }
+    printTimestamp();
     Serial.print("[MODBUS] Command Meaning - ");
     if (len > 2) {
       Serial.println(cmdDescription(inBuf[2]));
@@ -465,6 +486,13 @@ void loop() {
     }
     Serial.println();
     int cmdId2 = identifyCmd(mbBuf, outLen);
+    printTimestamp();
+    if (cmdId2) {
+      Serial.print("[MODBUS] Matched example #");
+      Serial.println(cmdId2);
+    } else {
+      Serial.println("[MODBUS] Command not in example table");
+    }
     printTimestamp();
     Serial.print("[MODBUS] Forwarding C");
     Serial.print(lastCmdId);
