@@ -4,6 +4,18 @@
 #include <esp_system.h>
 #include <stdio.h>
 
+// Short acknowledgement sent back to the Arduino sender and the PC
+static const uint8_t ACK_BYTES[] = {'A', 'C', 'K'};
+static const int ACK_LEN = sizeof(ACK_BYTES);
+
+// Example DNP3 responses returned to the Arduino sender
+static const byte DNP3_RESP_BIN_INPUT[]    = {0x05,0x80,0x81,0x01,0x02,0x00,0x01,0x01,0x16};
+static const int  DNP3_RESP_BIN_INPUT_LEN  = sizeof(DNP3_RESP_BIN_INPUT);
+static const byte DNP3_RESP_ANALOG_INPUT[] = {0x05,0x80,0x81,0x30,0x02,0x00,0x01,0x0A,0x00,0x16};
+static const int  DNP3_RESP_ANALOG_INPUT_LEN = sizeof(DNP3_RESP_ANALOG_INPUT);
+static const byte DNP3_RESP_CROB[]         = {0x05,0x81,0x00,0x16};
+static const int  DNP3_RESP_CROB_LEN       = sizeof(DNP3_RESP_CROB);
+
 /*
 Step-by-step usage:
 1. Wire the ESP32 to the W5500 as listed below and connect the UART link
@@ -72,10 +84,24 @@ unsigned cmdCounter = 0;
 unsigned lastCmdId = 0;
 uint8_t lastCmdFc = 0;
 
-// Expected Modbus request patterns, shared with the Modbus ESP32.
-const byte MODBUS_CMDS[][8] = {
-  { 0x01, 0x03, 0x00, 0x00, 0x00, 0x02, 0xC4, 0x0B },
-  { 0x01, 0x04, 0x00, 0x01, 0x00, 0x01, 0x31, 0xCA }
+// Expected Modbus request patterns shared with the Modbus ESP32
+static const byte MB_CMD_READ_HOLD[]        = {0x01,0x03,0x00,0x0A,0x00,0x02,0xE4,0x09};
+static const byte MB_CMD_READ_INPUT_REG[]   = {0x01,0x04,0x00,0x0A,0x00,0x02,0x51,0xC9};
+static const byte MB_CMD_WRITE_COIL[]       = {0x01,0x05,0x00,0x13,0xFF,0x00,0x7D,0xFF};
+static const byte MB_CMD_READ_INPUT_STATUS[]= {0x01,0x02,0x00,0x00,0x00,0x08,0x79,0xCC};
+static const byte MB_CMD_WRITE_MULTI_REGS[] = {0x01,0x10,0x00,0x01,0x00,0x02,0x04,0x00,0x0A,0x00,0x14,0x12,0x6E};
+
+struct CmdPattern {
+  const byte *data;
+  int len;
+};
+
+static const CmdPattern MODBUS_CMDS[] = {
+  {MB_CMD_READ_HOLD,         sizeof(MB_CMD_READ_HOLD)},
+  {MB_CMD_READ_INPUT_REG,    sizeof(MB_CMD_READ_INPUT_REG)},
+  {MB_CMD_WRITE_COIL,        sizeof(MB_CMD_WRITE_COIL)},
+  {MB_CMD_READ_INPUT_STATUS, sizeof(MB_CMD_READ_INPUT_STATUS)},
+  {MB_CMD_WRITE_MULTI_REGS,  sizeof(MB_CMD_WRITE_MULTI_REGS)}
 };
 const int NUM_CMDS = sizeof(MODBUS_CMDS) / sizeof(MODBUS_CMDS[0]);
 
@@ -95,7 +121,8 @@ static const char *cmdDescription(uint8_t fc) {
 
 static int identifyCmd(const byte *buf, int len) {
   for (int i = 0; i < NUM_CMDS; i++) {
-    if (len == 8 && memcmp(buf, MODBUS_CMDS[i], 8) == 0) {
+    if (len == MODBUS_CMDS[i].len &&
+        memcmp(buf, MODBUS_CMDS[i].data, MODBUS_CMDS[i].len) == 0) {
       return i + 1;
     }
   }
@@ -332,7 +359,7 @@ void loop() {
         Serial.println(len);
         unsigned long txStart = micros();
         outClient.write(buf, len);
-        outClient.write((const uint8_t*)"ACK", 3);
+        outClient.write(ACK_BYTES, ACK_LEN);
         outClient.stop();
         Serial.print("Send time us: ");
         Serial.println(micros() - txStart);
@@ -380,11 +407,32 @@ void loop() {
     }
 
     printTimestamp();
-    Serial.println("[DNP3] Send ACK to Sender");
-    inc.write((const uint8_t*)"ACK", 3);
-    Serial.println("[DNP3] 0x41 0x43 0x4B");
+    Serial.println("[DNP3] Send Response to Sender");
+    const byte *resp = DNP3_RESP_BIN_INPUT;
+    int respLen = DNP3_RESP_BIN_INPUT_LEN;
+    if (buf[2] == 0x01 && buf[3] == 0x30) {
+      resp = DNP3_RESP_ANALOG_INPUT;
+      respLen = DNP3_RESP_ANALOG_INPUT_LEN;
+    } else if (buf[2] == 0x05) {
+      resp = DNP3_RESP_CROB;
+      respLen = DNP3_RESP_CROB_LEN;
+    }
+    inc.write(resp, respLen);
+    Serial.print("[DNP3] ");
+    for (int i = 0; i < respLen; i++) {
+      Serial.print("0x");
+      if (resp[i] < 16) Serial.print("0");
+      Serial.print(resp[i], HEX);
+      if (i < respLen - 1) Serial.print(" ");
+    }
+    Serial.println();
     printTimestamp();
-    Serial.println("[DNP3] Response Meaning - ACK");
+    Serial.print("[DNP3] Response Meaning - ");
+    if (respLen > 2) {
+      Serial.println(cmdDescription(resp[2]));
+    } else {
+      Serial.println("ACK");
+    }
     inc.stop();
 
     byte mbBuf[260];

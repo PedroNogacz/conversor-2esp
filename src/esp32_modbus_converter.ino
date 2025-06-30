@@ -3,6 +3,22 @@
 #include <esp_system.h>
 #include <stdio.h>
 
+// Short acknowledgement sent back to the Arduino sender and the PC
+static const uint8_t ACK_BYTES[] = {'A', 'C', 'K'};
+static const int ACK_LEN = sizeof(ACK_BYTES);
+
+// Example Modbus responses used instead of the generic ACK
+static const byte MB_RESP_READ_HOLD_REG[]        = {0x01,0x03,0x04,0x00,0x64,0x00,0x32,0x3A,0x39};
+static const int  MB_RESP_READ_HOLD_REG_LEN      = sizeof(MB_RESP_READ_HOLD_REG);
+static const byte MB_RESP_READ_INPUT_REG[]       = {0x01,0x04,0x04,0x00,0x64,0x00,0x32,0x3B,0x8E};
+static const int  MB_RESP_READ_INPUT_REG_LEN     = sizeof(MB_RESP_READ_INPUT_REG);
+static const byte MB_RESP_WRITE_COIL[]           = {0x01,0x05,0x00,0x13,0xFF,0x00,0x7D,0xFF};
+static const int  MB_RESP_WRITE_COIL_LEN         = sizeof(MB_RESP_WRITE_COIL);
+static const byte MB_RESP_READ_INPUT_STATUS[]    = {0x01,0x02,0x01,0xCD,0x60,0x1D};
+static const int  MB_RESP_READ_INPUT_STATUS_LEN  = sizeof(MB_RESP_READ_INPUT_STATUS);
+static const byte MB_RESP_WRITE_MULTI_REGS[]     = {0x01,0x10,0x00,0x01,0x00,0x02,0x10,0x08};
+static const int  MB_RESP_WRITE_MULTI_REGS_LEN   = sizeof(MB_RESP_WRITE_MULTI_REGS);
+
 /*
 Step-by-step usage:
 1. Wire the W5500 module and the UART link to the second ESP32 using
@@ -74,12 +90,24 @@ unsigned cmdCounter = 0;
 unsigned lastCmdId = 0;
 uint8_t lastCmdFc = 0;
 
-// Example Modbus commands we expect. Command 1 reads two holding
-// registers starting at address 0. Command 2 reads a single input
-// register at address 1.
-const byte MODBUS_CMDS[][8] = {
-  { 0x01, 0x03, 0x00, 0x00, 0x00, 0x02, 0xC4, 0x0B },
-  { 0x01, 0x04, 0x00, 0x01, 0x00, 0x01, 0x31, 0xCA }
+// Example Modbus commands we expect
+static const byte MB_CMD_READ_HOLD[]        = {0x01,0x03,0x00,0x0A,0x00,0x02,0xE4,0x09};
+static const byte MB_CMD_READ_INPUT_REG[]   = {0x01,0x04,0x00,0x0A,0x00,0x02,0x51,0xC9};
+static const byte MB_CMD_WRITE_COIL[]       = {0x01,0x05,0x00,0x13,0xFF,0x00,0x7D,0xFF};
+static const byte MB_CMD_READ_INPUT_STATUS[]= {0x01,0x02,0x00,0x00,0x00,0x08,0x79,0xCC};
+static const byte MB_CMD_WRITE_MULTI_REGS[] = {0x01,0x10,0x00,0x01,0x00,0x02,0x04,0x00,0x0A,0x00,0x14,0x12,0x6E};
+
+struct CmdPattern {
+  const byte *data;
+  int len;
+};
+
+static const CmdPattern MODBUS_CMDS[] = {
+  {MB_CMD_READ_HOLD,         sizeof(MB_CMD_READ_HOLD)},
+  {MB_CMD_READ_INPUT_REG,    sizeof(MB_CMD_READ_INPUT_REG)},
+  {MB_CMD_WRITE_COIL,        sizeof(MB_CMD_WRITE_COIL)},
+  {MB_CMD_READ_INPUT_STATUS, sizeof(MB_CMD_READ_INPUT_STATUS)},
+  {MB_CMD_WRITE_MULTI_REGS,  sizeof(MB_CMD_WRITE_MULTI_REGS)}
 };
 const int NUM_CMDS = sizeof(MODBUS_CMDS) / sizeof(MODBUS_CMDS[0]);
 
@@ -101,7 +129,8 @@ static const char *cmdDescription(uint8_t fc) {
 // Modbus requests. Returns 0 when no match is found.
 static int identifyCmd(const byte *buf, int len) {
   for (int i = 0; i < NUM_CMDS; i++) {
-    if (len == 8 && memcmp(buf, MODBUS_CMDS[i], 8) == 0) {
+    if (len == MODBUS_CMDS[i].len &&
+        memcmp(buf, MODBUS_CMDS[i].data, MODBUS_CMDS[i].len) == 0) {
       return i + 1;
     }
   }
@@ -297,13 +326,45 @@ void loop() {
     Serial.print("[MODBUS] Command Meaning - ");
     Serial.println(cmdDescription(mbBuf[1]));
 
-    printTimestamp();
-    Serial.println("[MODBUS] Send ACK to Sender");
-    client.write((const uint8_t*)"ACK", 3);
+    int cmdId = identifyCmd(mbBuf, mbLen);
+    const byte *resp = ACK_BYTES;
+    int respLen = ACK_LEN;
+    if (cmdId == 1) {
+      resp = MB_RESP_READ_HOLD_REG;
+      respLen = MB_RESP_READ_HOLD_REG_LEN;
+    } else if (cmdId == 2) {
+      resp = MB_RESP_READ_INPUT_REG;
+      respLen = MB_RESP_READ_INPUT_REG_LEN;
+    } else if (cmdId == 3) {
+      resp = MB_RESP_WRITE_COIL;
+      respLen = MB_RESP_WRITE_COIL_LEN;
+    } else if (cmdId == 4) {
+      resp = MB_RESP_READ_INPUT_STATUS;
+      respLen = MB_RESP_READ_INPUT_STATUS_LEN;
+    } else if (cmdId == 5) {
+      resp = MB_RESP_WRITE_MULTI_REGS;
+      respLen = MB_RESP_WRITE_MULTI_REGS_LEN;
+    }
 
-    Serial.println("[MODBUS] 0x41 0x43 0x4B");
     printTimestamp();
-    Serial.println("[MODBUS] Response Meaning - ACK");
+    Serial.println("[MODBUS] Send Response to Sender");
+    client.write(resp, respLen);
+
+    Serial.print("[MODBUS] ");
+    for (int i = 0; i < respLen; i++) {
+      Serial.print("0x");
+      if (resp[i] < 16) Serial.print("0");
+      Serial.print(resp[i], HEX);
+      if (i < respLen - 1) Serial.print(" ");
+    }
+    Serial.println();
+    printTimestamp();
+    Serial.print("[MODBUS] Response Meaning - ");
+    if (respLen > 1) {
+      Serial.println(cmdDescription(resp[1]));
+    } else {
+      Serial.println("ACK");
+    }
     client.stop();
 
     rxHist[rxIndex].len = mbLen;
@@ -416,7 +477,7 @@ void loop() {
         unsigned long tx2Start = micros();
         outClient.write(mbBuf, outLen);
         // let the PC know we handled the request
-        outClient.write((const uint8_t*)"ACK", 3);
+        outClient.write(ACK_BYTES, ACK_LEN);
         outClient.stop();
         Serial.print("Send time us: ");
         Serial.println(micros() - tx2Start);
