@@ -156,7 +156,9 @@ converters.  The script listens on **port&nbsp;20000** for DNP3 frames from the
 DNP3 ESP32 and **port&nbsp;1502** for Modbus frames from the Modbus ESP32.  A
 Tkinter window displays each message in separate panes while the console prints
 the same information. The decoded command name is shown so you can verify which
-request was recognized.
+request was recognized. A small graph at the bottom of the window tracks how
+many messages were recognized versus marked as **Unknown** for each protocol so
+you can gauge the overall health of the converters.
 
 #### Requirements
 
