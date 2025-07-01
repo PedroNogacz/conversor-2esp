@@ -25,6 +25,7 @@ import threading
 import queue
 from datetime import datetime
 import tkinter as tk
+from tkinter import ttk
 from tkinter.scrolledtext import ScrolledText
 
 # Example Modbus requests used by the firmware. Each entry maps the
@@ -58,6 +59,16 @@ CMD_NAMES = {
     0x0F: "Write Multiple Coils",
     0x10: "Write Multiple Registers",
 }
+
+
+# Counters used to track how many messages were recognized versus
+# reported as "Unknown" for each protocol.  These are updated by the
+# server threads and read by the Tkinter GUI.
+stats = {
+    "DNP3": {"total": 0, "unknown": 0},
+    "Modbus": {"total": 0, "unknown": 0},
+}
+stats_lock = threading.Lock()
 
 
 def is_dnp3(data: bytes) -> bool:
@@ -125,6 +136,12 @@ def server_thread(port: int, proto: str, msg_queue: queue.Queue) -> None:
         if cmd_name is None:
             cmd_name = "Unknown"
 
+        # Update statistics for this protocol.
+        with stats_lock:
+            stats[proto]["total"] += 1
+            if cmd_name == "Unknown":
+                stats[proto]["unknown"] += 1
+
         # Step 8: build a message that will appear in the GUI and console.
         summary = (
             f"Time: {timestamp} From {addr[0]} Port {port}\n"
@@ -134,6 +151,7 @@ def server_thread(port: int, proto: str, msg_queue: queue.Queue) -> None:
         )
 
         msg_queue.put((proto, summary))  # send to GUI
+        msg_queue.put(("stats", None))  # update GUI statistics
         print(summary, end="")          # echo to console
 
 
@@ -163,6 +181,46 @@ def main() -> None:
     text_mb = ScrolledText(frame_mb, width=60, height=20)
     text_mb.pack(fill=tk.BOTH, expand=True)
 
+    # Frame at the bottom showing recognition statistics for each protocol.
+    frame_stats = tk.LabelFrame(root, text="Recognition Stats")
+    frame_stats.pack(side=tk.BOTTOM, fill=tk.X)
+
+    label_dnp = tk.Label(frame_stats, text="DNP3 recognized: 0/0 (0% OK)")
+    label_dnp.pack(fill=tk.X, padx=5)
+    progress_dnp = ttk.Progressbar(frame_stats, maximum=100)
+    progress_dnp.pack(fill=tk.X, padx=5)
+
+    label_mb = tk.Label(frame_stats, text="Modbus recognized: 0/0 (0% OK)")
+    label_mb.pack(fill=tk.X, padx=5, pady=(5,0))
+    progress_mb = ttk.Progressbar(frame_stats, maximum=100)
+    progress_mb.pack(fill=tk.X, padx=5)
+
+    def update_stats() -> None:
+        """Refresh progress bars and labels with current statistics."""
+        with stats_lock:
+            d_total = stats["DNP3"]["total"]
+            d_unknown = stats["DNP3"]["unknown"]
+            m_total = stats["Modbus"]["total"]
+            m_unknown = stats["Modbus"]["unknown"]
+
+        def calc_text(total: int, unknown: int, proto: str) -> tuple[str, float]:
+            if total:
+                ok = total - unknown
+                pct = ok / total * 100
+            else:
+                ok = 0
+                pct = 0.0
+            text = f"{proto} recognized: {ok}/{total} ({pct:.0f}% OK)"
+            return text, pct
+
+        text, pct = calc_text(d_total, d_unknown, "DNP3")
+        label_dnp.config(text=text)
+        progress_dnp['value'] = pct
+
+        text, pct = calc_text(m_total, m_unknown, "Modbus")
+        label_mb.config(text=text)
+        progress_mb['value'] = pct
+
     def poll_queue() -> None:
         """Update text widgets with any queued messages."""
         try:
@@ -172,6 +230,9 @@ def main() -> None:
                     for t in (text_dnp, text_mb):
                         t.insert(tk.END, msg)
                         t.see(tk.END)
+                    continue
+                if proto == "stats":
+                    update_stats()
                     continue
                 if proto == "DNP3":
                     target = text_dnp
@@ -183,6 +244,7 @@ def main() -> None:
             pass
         root.after(100, poll_queue)
 
+    update_stats()
     root.after(100, poll_queue)
     root.mainloop()
 
