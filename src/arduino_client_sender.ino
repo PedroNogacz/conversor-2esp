@@ -62,6 +62,13 @@ static const CmdDef MODBUS_CMDS[] = {
   {MB_CMD_WRITE_MULTI_REGS, sizeof(MB_CMD_WRITE_MULTI_REGS)}
 };
 const int NUM_CMDS = sizeof(MODBUS_CMDS) / sizeof(MODBUS_CMDS[0]);
+// Example responses expected from the DNP3 converter
+static const byte DNP3_RESP_BIN_INPUT[]    = {0x05,0x80,0x81,0x01,0x02,0x00,0x01,0x01,0x16};
+static const int  DNP3_RESP_BIN_INPUT_LEN  = sizeof(DNP3_RESP_BIN_INPUT);
+static const byte DNP3_RESP_ANALOG_INPUT[] = {0x05,0x80,0x81,0x30,0x02,0x00,0x01,0x0A,0x00,0x16};
+static const int  DNP3_RESP_ANALOG_INPUT_LEN = sizeof(DNP3_RESP_ANALOG_INPUT);
+static const byte DNP3_RESP_CROB[]         = {0x05,0x81,0x00,0x16};
+static const int  DNP3_RESP_CROB_LEN       = sizeof(DNP3_RESP_CROB);
 // Use all commands in sequence
 const int ACTIVE_CMDS = NUM_CMDS;
 int chosenCmds[ACTIVE_CMDS] = {0, 1, 2, 3, 4};
@@ -82,6 +89,24 @@ static const char *cmdDescription(uint8_t fc) {
     case 0x10: return "Write Multiple Registers";
     default:   return "Unknown";
   }
+}
+
+// Return a friendly name for the known DNP3 responses so the sender
+// log does not show "Unknown" when those frames arrive.
+static const char *dnp3RespDescription(const byte *buf, int len) {
+  if (len == DNP3_RESP_BIN_INPUT_LEN &&
+      memcmp(buf, DNP3_RESP_BIN_INPUT, DNP3_RESP_BIN_INPUT_LEN) == 0) {
+    return "Binary Inputs Response";
+  }
+  if (len == DNP3_RESP_ANALOG_INPUT_LEN &&
+      memcmp(buf, DNP3_RESP_ANALOG_INPUT, DNP3_RESP_ANALOG_INPUT_LEN) == 0) {
+    return "Analog Inputs Response";
+  }
+  if (len == DNP3_RESP_CROB_LEN &&
+      memcmp(buf, DNP3_RESP_CROB, DNP3_RESP_CROB_LEN) == 0) {
+    return "Control Relay Response";
+  }
+  return "Unknown";
 }
 
 
@@ -151,6 +176,7 @@ void loop() {
   if (millis() - lastBeat > HEARTBEAT_INTERVAL) {
     printTimestamp();
     Serial.println("Sender heartbeat");
+    Serial.println();
     digitalWrite(LED_BUILTIN, ledState);
     ledState = !ledState;
     lastBeat = millis();
@@ -348,7 +374,7 @@ void loop() {
           } else if (rlen >= 4 && resp[0] == 0x05 && resp[rlen - 1] == 0x16) {
             printTimestamp();
             Serial.print("[DNP3] Meaning - ");
-            Serial.println(cmdDescription(resp[2]));
+            Serial.println(dnp3RespDescription(resp, rlen));
           } else if (rlen >= 2) {
             printTimestamp();
             Serial.print("[DNP3] Meaning - ");

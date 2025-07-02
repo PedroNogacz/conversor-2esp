@@ -266,6 +266,9 @@ void setup() {
   Serial.begin(115200);
   // Step 2: open the UART link to the second ESP32.
   Serial1.begin(115200, SERIAL_8N1, LINK_RX, LINK_TX);
+  while (Serial1.available()) {
+    Serial1.read();
+  }
   // Step 3: show the last reset reason.
   esp_reset_reason_t reason = esp_reset_reason();
   Serial.print("Reset reason: ");
