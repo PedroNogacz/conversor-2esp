@@ -119,6 +119,24 @@ static const char *cmdDescription(uint8_t fc) {
   }
 }
 
+// Helper that recognises the example DNP3 response frames and returns a
+// descriptive name so the logs avoid printing "Unknown".
+static const char *dnp3RespDescription(const byte *buf, int len) {
+  if (len == DNP3_RESP_BIN_INPUT_LEN &&
+      memcmp(buf, DNP3_RESP_BIN_INPUT, DNP3_RESP_BIN_INPUT_LEN) == 0) {
+    return "Binary Inputs Response";
+  }
+  if (len == DNP3_RESP_ANALOG_INPUT_LEN &&
+      memcmp(buf, DNP3_RESP_ANALOG_INPUT, DNP3_RESP_ANALOG_INPUT_LEN) == 0) {
+    return "Analog Inputs Response";
+  }
+  if (len == DNP3_RESP_CROB_LEN &&
+      memcmp(buf, DNP3_RESP_CROB, DNP3_RESP_CROB_LEN) == 0) {
+    return "Control Relay Response";
+  }
+  return "Unknown";
+}
+
 // Identify which of the example Modbus commands was wrapped inside the
 // incoming DNP3 frame. This version compares the full request bytes so the
 // exact command is recognised, keeping the DNP3 handling separate from the
@@ -249,6 +267,9 @@ void setup() {
   Serial.begin(115200);
   // Step 2: open the UART link to the Modbus ESP32.
   Serial1.begin(115200, SERIAL_8N1, LINK_RX, LINK_TX);
+  while (Serial1.available()) {
+    Serial1.read();
+  }
   // Step 3: display why the board reset.
   esp_reset_reason_t reason = esp_reset_reason();
   Serial.print("Reset reason: ");
@@ -439,11 +460,7 @@ void loop() {
     Serial.println();
     printTimestamp();
     Serial.print("[DNP3] Response Meaning - ");
-    if (respLen > 2) {
-      Serial.println(cmdDescription(resp[2]));
-    } else {
-      Serial.println("ACK");
-    }
+    Serial.println(dnp3RespDescription(resp, respLen));
     inc.stop();
 
     byte mbBuf[260];
