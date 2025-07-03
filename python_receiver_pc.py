@@ -74,6 +74,26 @@ stats = {
 }
 stats_lock = threading.Lock()
 
+# Keep a running tally of how many times each command was seen for
+# both protocols.  This allows writing a summary to disk so the user
+# can review the overall traffic after the listener has been running.
+command_counts = {
+    "DNP3": {},
+    "Modbus": {},
+}
+
+
+def write_archive() -> None:
+    """Write the current command counts to ``command_archive.txt``."""
+    lines: list[str] = []
+    for proto, counts in command_counts.items():
+        lines.append(f"{proto} commands:\n")
+        for name, count in sorted(counts.items()):
+            lines.append(f"  {name}: {count}\n")
+        lines.append("\n")
+    with open("command_archive.txt", "w", encoding="utf-8") as fh:
+        fh.writelines(lines)
+
 
 def is_dnp3(data: bytes) -> bool:
     """Return True if *data* appears to be a minimal DNP3 frame."""
@@ -140,11 +160,14 @@ def server_thread(port: int, proto: str, msg_queue: queue.Queue) -> None:
         if cmd_name is None:
             cmd_name = "Unknown"
 
-        # Update statistics for this protocol.
+        # Update statistics and command counts for this protocol.
         with stats_lock:
             stats[proto]["total"] += 1
             if cmd_name == "Unknown":
                 stats[proto]["unknown"] += 1
+            counts = command_counts[proto]
+            counts[cmd_name] = counts.get(cmd_name, 0) + 1
+            write_archive()
 
         # Step 8: build a message that will appear in the GUI and console.
         summary = (

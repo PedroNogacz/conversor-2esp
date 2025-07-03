@@ -160,6 +160,11 @@ request was recognized. A small graph at the bottom of the window tracks how
 many messages were recognized versus marked as **Unknown** for each protocol so
 you can gauge the overall health of the converters.
 
+The script also updates a file named `command_archive.txt` in the same
+directory. It records how many times each command has been seen for the
+Modbus and DNP3 protocols. Every new message refreshes this archive so you
+can easily review which commands reached the PC.
+
 #### Requirements
 
 The listener relies solely on Python's standard library. It uses the Tkinter
